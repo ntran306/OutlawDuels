@@ -10,9 +10,14 @@ multiplayer finger gun 1 v 1 (the main goal), then team play, killcam, bow, lead
 
 ## State as of 2026-11-14
 
-- Planning is complete enough to start. No code exists yet: no Swift package, no Xcode
-  project. The next work is Phase 0 (`PLAN.md` §17), in the step order 0a–0g given there,
-  done in an implementation session separate from the hub session.
+- Phase 0 (`PLAN.md` §17) is under way, in the step order 0a–0g. Steps 0a and 0b are done
+  and verified: `Core/` has `Vec3` with 5 tests, passing on the laptop, on Linux and under
+  Xcode's Swift in CI. Step 0c is built but not device-tested: CI produces an unsigned
+  `OutlawDuels.ipa` (camera view plus fps readout) and `tools/install.ps1` downloads it;
+  the Sideloadly install and the fps check on the iPhone 12 are still to do (U). Step 0d
+  is written: `Tuning`, `TuningStore` and `Log` in `Core` (tested), `tools/devserver.py`
+  (tested on the laptop), and the app's Dev server field, tuning poll, log upload and log
+  overlay (compiled in CI only, not run on a device (U)). Next is step 0e, the recorder.
 - Laptop tools installed and checked 2026-11-14: Swift 6.4.2 (a throwaway package built and
   passed a Swift Testing test; edit-build-test took 7 s), GitHub CLI 2.104.0 signed in with
   `repo` and `workflow` scopes, Sideloadly with desktop iTunes and iCloud. `swift` and `gh`

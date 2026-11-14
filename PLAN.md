@@ -384,8 +384,8 @@ Heat ladder, driven by `ProcessInfo.thermalState`:
 | Recorder | Writes `Application Support/OutlawDuels/telemetry/rec_<unixMs>.jsonl`. Line 1: `{"v":1,"intrinsics":[fx,fy,cx,cy],"imageSize":[w,h],"device":"..."}`. Then one line per hand-tracker frame: `{"t":sec,"cam":[px,py,pz,qx,qy,qz,qw],"mp":{"vp":[[x,y]x21],"w":[[x,y,z]x21],"score":s,"right":bool}|null,"vis":{"vp":[[x,y]x21],"conf":[c x21]}|null,"track":0|1|2}`. About 1.2 kB a line, 2.2 MB a minute at 30 Hz (T). |
 | Dev server | `tools/devserver.py`, Python standard library only, port 8765. `GET /tuning.json` serves `tools/tuning.json`; `POST /telemetry/<name>` and `POST /log` save under `build/device/`. |
 | App setting | "Dev server" field, e.g. `http://192.168.1.20:8765`. When set, the app polls `/tuning.json` every 2 s (T) and uploads logs every 5 s (T). Needs `NSAppTransportSecurity` > `NSAllowsLocalNetworking = true` for plain HTTP on the LAN. Without a server, recordings leave the phone through the share sheet (`UIFileSharingEnabled`). |
-| Tuning | `Core/Sources/Core/Tuning/Tuning.swift`: one `Codable` struct with every (T) constant, defaults equal to this plan. `TuningStore.apply(json:)` overrides fields present in the file; unknown keys are logged, not fatal. The HUD shows the tuning revision in use. |
-| Log | `Log.event(_ name: String, _ fields: [String: Double])` into a ring of 2,000 lines; overlay toggled with a three-finger tap; uploaded to the dev server. |
+| Tuning | `Core/Sources/Core/Tuning/Tuning.swift`: one `Codable` struct with every named scalar (T) constant, defaults equal to this plan; JSON keys are the camelCase property names (`GUN_BASE_DAMAGE` is `gunBaseDamage`), plus `revision: Int`. Unnamed or non-scalar (T) values are added by the phase that first uses them. `TuningStore.apply(json:)` starts from the defaults and overrides fields present in the file, so a key removed from the file returns to its default; unknown keys are logged, not fatal; a file that is not a JSON object or gives a field the wrong type is rejected whole and the previous tuning stays. The HUD shows the tuning revision in use. |
+| Log | `Core/Sources/Core/Log/Log.swift`. `Log.event(_ name: String, _ fields: [String: Double])` and `Log.message(_ name: String, _ text: String)` into a ring of 2,000 lines; one line is `{"e":name,"f":{...},"m":text?,"seq":n,"t":uptimeSec}`; overlay toggled with a three-finger tap; uploaded to the dev server. |
 
 ### 1B.7 Camera-based correction (decided 2026-11-13)
 
@@ -538,7 +538,7 @@ public struct RosterMsg: Sendable { public var players: [RosterEntry] }
 | System frameworks | SwiftUI, ARKit, RealityKit (`ARView`), Network, CoreHaptics, AVFoundation, Vision, CoreImage, ImageIO | No third-party package for these. |
 | MediaPipe Tasks Vision | Swift Package Manager product from `https://github.com/google-ai-edge/mediapipe`, pinned to one revision in `project.yml` | (U) product name, the revision, and that it links under Swift 6; same `hand_landmarker.task` model as FletchFlow. CocoaPods (`MediaPipeTasksVision` 0.10.x) is the fallback. May be dropped entirely if Apple Vision wins the Phase 1 comparison (§1B.1 #9). |
 | CocoaPods | Not used (§1B.1 #8) | Fallback only, if the MediaPipe Swift package fails to build. |
-| XcodeGen | 2.4x on the runner | (U) exact patch. `project.yml` generates `OutlawDuels.xcodeproj` on the runner, because no Xcode project can be authored on Windows. The generated project is not committed. |
+| XcodeGen | 2.46.0 on the runner (`brew install xcodegen`, **verified 2026-11-14**) | `project.yml` generates `OutlawDuels.xcodeproj` on the runner, because no Xcode project can be authored on Windows. The generated project is not committed. |
 | Test framework | Swift Testing (`import Testing`) in `Core/Tests/CoreTests/` | Swift Testing is present in the Windows toolchain (verified 2026-11-14, library version 6.4.2). |
 | Windows toolchain | Swift 6.4.2 for Windows (installed 2026-11-14 with `winget`, id `Swift.Toolchain`), with Visual Studio 2022 Community 17.14 ("Desktop development with C++") and Windows SDK 10.0.26100 | **Verified 2026-11-14** on a throwaway package: `swift test` builds and runs a Swift Testing test; an edit-build-test cycle took 7 s. The laptop's Swift (6.4.2) is newer than the one in Xcode 26.6 (6.3.3), so `Core` must use only language features both accept; the Linux CI job uses the `swift:6.3` container and the `xcode-swift` job runs the `Core` tests under Xcode's own Swift to catch that. |
 | QR | Encode with CoreImage `CIQRCodeGenerator`; decode with Vision `VNDetectBarcodesRequest` | Replaces ZXing.Net. |
@@ -559,7 +559,7 @@ push to `main` and on manual dispatch.
 |---|---|---|---|
 | 1 `core-tests` | `ubuntu-latest`, container `swift:6.3` | `swift test --package-path Core` | 45 s measured 2026-11-14 |
 | 1b `xcode-swift` | `macos-26` | Print `xcodebuild -version` and `swift --version`; `swift test --package-path Core` under Xcode's Swift | 34 s measured 2026-11-14 |
-| 2 `ios-ipa` (needs 1) | `macos-26` | Select Xcode 26.x; `brew install xcodegen`; `xcodegen generate`; `xcodebuild archive -project OutlawDuels.xcodeproj -scheme OutlawDuels -destination 'generic/platform=iOS' -archivePath build/OutlawDuels.xcarchive CODE_SIGNING_ALLOWED=NO`; copy the `.app` from the archive into `Payload/` and `zip -r OutlawDuels.ipa Payload`; upload artifact `OutlawDuels-ipa` (retention 7 days (T)) | 8–15 min (T) |
+| 2 `ios-ipa` (needs 1) | `macos-26` | Select Xcode 26.x; `brew install xcodegen`; `xcodegen generate`; `xcodebuild archive -project OutlawDuels.xcodeproj -scheme OutlawDuels -destination 'generic/platform=iOS' -archivePath build/OutlawDuels.xcarchive CODE_SIGNING_ALLOWED=NO`; copy the `.app` from the archive into `Payload/` and `zip -r OutlawDuels.ipa Payload`; upload artifact `OutlawDuels-ipa` (retention 7 days (T)) | 1 min 24 s measured 2026-11-14 with no third-party package (run 43635433749; push to artifact 2 min 22 s, `.ipa` 24 kB) |
 
 Swift package checkouts and build products are cached with `actions/cache`, keyed on
 `project.yml`.
@@ -614,6 +614,8 @@ D:\Projects\OutlawDuels\
       Match/        MatchStateMachine LifeStateMachine GameMode
       Replay/       KillcamClipHeader ClipChunker
       Services/     LeaderboardService LocalLeaderboardService
+      Tuning/       Tuning TuningStore (§1B.6)
+      Log/          Log LogRing LogLine (§1B.6)
     Tests/CoreTests/              one test file per folder above
   App/                            the iOS app target; the only code that imports Apple frameworks
     OutlawDuelsApp.swift
@@ -623,7 +625,7 @@ D:\Projects\OutlawDuels\
     Net/            NetworkHost NetworkClient MatchNetwork
     Modes/          PracticeRange TeamDeathmatch ModeRegistry
     Replay/         ClipRecorder ClipTransfer ClipPlayer
-    Services/       Profile SupabaseLeaderboardService
+    Services/       Profile SupabaseLeaderboardService DevServerClient
     UI/             SwiftUI views, HUD, sync screen
     Haptics/        HapticsPlayer
     Resources/      hand_landmarker.task, Assets.xcassets (AR resource group "SyncMarkers"), Audio/, Art/

@@ -20,9 +20,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "gh run download failed for run $($run.databaseId)." }
     if (-not (Test-Path $ipaPath)) { throw "Artifact downloaded but $ipaPath is missing." }
 
-    $sizeMb = [math]::Round((Get-Item $ipaPath).Length / 1MB, 1)
+    $sizeKb = [math]::Round((Get-Item $ipaPath).Length / 1KB)
     Write-Host "Run $($run.databaseId), commit $($run.headSha.Substring(0, 7)), built $($run.createdAt)"
-    Write-Host "Saved $ipaPath ($sizeMb MB)"
+    Write-Host "Saved $ipaPath ($sizeKb kB)"
     Write-Host ''
     Write-Host 'Next: plug in the iPhone, open Sideloadly, drag that .ipa in, enter your Apple ID, press Start.'
 }
