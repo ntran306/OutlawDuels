@@ -21,13 +21,13 @@ Legend used throughout:
 
 | Topic | Decision |
 |---|---|
-| Dev machine | Windows 11 laptop plus a spare Mac used for builds (§1A.1). |
-| Test devices | iPhones only. First test phone: iPhone 12. |
-| Engine | Unity 6 + AR Foundation (ARKit provider) as written; under review against native Swift (§1A.2). |
+| Dev machine | Windows 11 laptop. Builds run on a GitHub Actions macOS runner; the old Mac cannot build (§1A.1). |
+| Test devices | iPhones only. First test phone: iPhone 12 on iOS 26.6.1. |
+| Engine | **Native Swift, decided 2026-11-13** (§1A.2): ARKit + RealityKit, Network.framework, Core Haptics, MediaPipe Tasks. The user wants to learn Swift. |
 | Order | Gun mode first, bow second. |
 | Shared coordinate frame | Every client scans a marker on the host's screen (§6). |
 | Hit decision | Shooter's phone: ray through a 0.25 m sphere, target in frame, >= 30 % people-mask pixels at the target's range, excluding the shooter's own hand (§8). Host only sanity-checks and applies damage. |
-| Network | One phone hosts over LAN with Netcode for GameObjects. No dedicated server. |
+| Network | One phone hosts over the LAN with Network.framework (UDP 7777 plus TCP 7778, §10). No dedicated server. |
 | Modes for testing | `PracticeRange` (with calibration) and `TeamDeathmatch`. |
 | Killcam | 5 s from both points of view on a kill (§11). |
 | Rankings | Behind `ILeaderboardService`; backend swappable (§12). |
@@ -40,34 +40,38 @@ Not settled: see §15 (Open decisions).
 ## 1A. Design update, 2026-11-13
 
 Decisions made by the user after the first draft. **Where this section conflicts with a
-later section, this section wins.** The later sections are brought in line once the engine
-(§1A.2) is chosen, because that choice rewrites §2, §3, §10 and §12 anyway.
+later section, this section wins.** The engine was chosen on 2026-11-13 (§1A.2, native
+Swift) and the later sections were rewritten to match; where a later section still names
+Unity, C# or Netcode it is a leftover to fix.
 
 ### 1A.1 Hardware and builds
 
 | Item | Value | |
 |---|---|---|
-| Build machine | The user's spare Mac: local Xcode, cable or Wi-Fi install to the phone | (U) model, chip, memory and macOS version not yet known |
-| Gate | The Mac must install the Xcode version Apple currently requires for App Store upload | (U) check once the model is known |
-| Cloud build of §2.1 | Fallback only, used if the Mac fails the gate | |
-| Test phone | iPhone 12 (A14, no LiDAR) | |
+| Build machine | **Decided 2026-11-13:** GitHub Actions macOS runner (§2.1), unsigned `.ipa` | The spare Mac is out: it runs macOS 10.15 (Catalina) and Software Update offers nothing newer. Catalina's ceiling is Xcode 12.4, and the phone's iOS 26.6.1 needs Xcode 26 (U). |
+| Install path | **Decided 2026-11-13:** Sideloadly on the Windows laptop signs the `.ipa` with a free Apple ID and installs over USB | Already installed. Free signing expires after 7 days (re-sign weekly), and the free account limits active apps and capabilities (U: 3 apps). The phone needs Developer Mode on. No debugger: debug from logs. |
+| Release path | Apple Developer Program (US$99/year) when the user wants to release | Replaces the 7-day expiry with TestFlight. Not needed for development. |
+| Spare Mac | Not a build machine | Revisit only if a Mac that runs macOS Sequoia 15.6 or newer (U) becomes available |
+| Test phone | iPhone 12 (A14, no LiDAR), iOS 26.6.1 | |
 | Minimum device | iPhone 12, iOS 17.0 | (T) replaces "iPhone 11" in §2 |
-| Windows laptop | Editing, planning, `Core` unit tests if the engine stays Unity | |
+| Windows laptop | Editing, planning, and `swift test` on the pure-Swift `Core` package (§3, §13.2) | (U) the Swift Windows toolchain builds it; see §16 |
 
 A macOS virtual machine on the Windows laptop is ruled out: Apple's licence does not allow
 it, and the iPhone simulator has no camera or AR, so it could not test this game.
 
-### 1A.2 Engine: open
+### 1A.2 Engine: native Swift, decided 2026-11-13
 
-| Option | Stack | Consequence for this file |
-|---|---|---|
-| A. Unity (as written) | Unity 6, AR Foundation, Netcode for GameObjects, MediaPipe through a native plugin | None |
-| B. Native Swift | ARKit + RealityKit, MultipeerConnectivity, Core Haptics, MediaPipe Tasks through CocoaPods or Swift Package Manager, XCTest | §2, §3, §10 transport and §12 (C# to Swift) are rewritten. Algorithms, constants, state machines, feasibility tests and milestones are unchanged. |
+| Item | Value |
+|---|---|
+| Decision | Native Swift. The user chose it to learn Swift. Unity is dropped; §2, §3, §5, §6, §10, §11, §12, §13, §14.2 and §17 were rewritten on this date. Algorithms, constants, state machines and feasibility questions are unchanged. |
+| Stack | SwiftUI shell, ARKit + RealityKit (`ARView`), Network.framework, Core Haptics, MediaPipe Tasks (CocoaPods), Swift Testing |
+| What it costs | No Android. No Xcode on the user's machine: no previews, no debugger, and compile errors appear only in the cloud build or in `swift test` on the Core package. Every device change goes through the §2.1 loop, 15–25 min (T). |
+| How the cost is limited | All logic lives in the pure-Swift `Core` package (§3), tested on Windows in seconds. The app target holds only code that must touch Apple frameworks. |
+| What it gives | Direct access to people segmentation with depth, collaborative sessions and Core Haptics. |
 
-Recommendation: B if the Mac passes the gate of §1A.1 and the user is willing to develop on
-it; otherwise A with the Mac as build machine. B gives direct access to people depth,
-collaborative sessions and haptics, minute-scale device builds, and networking that may not
-need Wi-Fi (U). B gives up Android and all testing on the Windows laptop.
+Networking (§10) uses Network.framework with the QR join. MultipeerConnectivity is a
+possible later replacement that might remove the need for shared Wi-Fi (U); it is not
+planned.
 
 ### 1A.3 Health, damage, ammunition
 
@@ -168,8 +172,8 @@ listed in §18.
 | 1 | All phones on the same Wi-Fi | As §10 |
 | 2 | Host turns on Personal Hotspot; clients join it; same join QR | (U) host address on its own hotspot, expected 172.20.10.1 |
 
-Networks that block phone-to-phone traffic are out of scope for now. Under engine option
-B, MultipeerConnectivity may make both paths unnecessary (U).
+Networks that block phone-to-phone traffic are out of scope for now.
+MultipeerConnectivity may make both paths unnecessary (U), but is not planned (§1A.2).
 
 ### 1A.9 Tracking other players
 
@@ -194,126 +198,163 @@ rebuild; frame alignment comparison (§1A.9); bow accuracy and scope view (§1A.
 
 | Item | Pin | Note |
 |---|---|---|
-| Unity Editor | 6000.3 LTS, latest patch on day 1 | (U) confirm the patch number in Unity Hub and write it into this table and `ProjectSettings/ProjectVersion.txt`. |
-| `com.unity.xr.arfoundation` | 6.3.x matching the editor | (U) exact patch from Package Manager. |
-| `com.unity.xr.arkit` | same version as AR Foundation | Must match AR Foundation exactly. |
-| `com.unity.netcode.gameobjects` | 2.x, the release listed for 6000.3 | (U) exact patch. |
-| `com.unity.transport` | 2.x (pulled in by Netcode) | UDP, port 7777. |
-| `com.unity.multiplayer.playmode` | 1.x | Up to 4 virtual players in the Windows editor. |
-| `com.unity.services.leaderboards` + `com.unity.services.authentication` | latest 2.x / 3.x | Only from M6. |
-| MediaPipe Tasks Vision (iOS CocoaPod `MediaPipeTasksVision`) | 0.10.x | (U) exact patch; same `hand_landmarker.task` model as FletchFlow. |
-| ZXing.Net | 0.16.9 | QR encode/decode for the join code. Apache-2.0. |
-| Render pipeline | URP, Forward, MSAA off, HDR off | |
-| Scripting backend | IL2CPP, .NET Standard 2.1, ARM64 | |
-| Minimum device | iPhone 11 (A13), iOS 17.0 | (T) set from the oldest test phone, §15. People segmentation needs A12 or newer. |
+| Xcode | 26.x, the newest the CI runner image carries | (U) read the exact version from the runner image, write it here and in `.github/workflows/ios.yml`. iOS 26.6.1 on the test phone needs Xcode 26 to build for it. |
+| Swift | 6.2 (the version in Xcode 26), Swift 6 language mode | (U) `Core` uses `swift-tools-version: 6.0`. Strict concurrency is on from day 1. |
+| Deployment target | iOS 17.0 | (T) set from the oldest supported phone, §15 #4. People segmentation needs A12 or newer. |
+| System frameworks | SwiftUI, ARKit, RealityKit (`ARView`), Network, CoreHaptics, AVFoundation, Vision, CoreImage, ImageIO | No third-party package for these. |
+| MediaPipe Tasks Vision | CocoaPod `MediaPipeTasksVision` 0.10.x | (U) exact patch and that it links under Swift 6; same `hand_landmarker.task` model as FletchFlow. |
+| CocoaPods | 1.16.x on the runner | (U) exact patch. `Podfile.lock` is committed. |
+| XcodeGen | 2.4x on the runner | (U) exact patch. `project.yml` generates `OutlawDuels.xcodeproj` on the runner, because no Xcode project can be authored on Windows. The generated project is not committed. |
+| Test framework | Swift Testing (`import Testing`) in `Core/Tests/CoreTests/` | XCTest only if Swift Testing is missing from the Windows toolchain (U). |
+| Windows toolchain | Swift 6.2 release from swift.org for Windows, with Visual Studio Build Tools and the Windows SDK | (U) it builds and tests `Core`; see §16. |
+| QR | Encode with CoreImage `CIQRCodeGenerator`; decode with Vision `VNDetectBarcodesRequest` | Replaces ZXing.Net. |
 | Orientation | Portrait, locked | (T) one hand holds the phone, the other makes the gun. |
-| Frame rate | `Application.targetFrameRate = 60` | |
-| Bundle id | `com.ntran306.outlawduels` | (T) |
+| Frame rate | `ARView` at 60 fps (`preferredFramesPerSecond = 60`) | |
+| Bundle id | `com.ntran306.outlawduels` | (T) Sideloadly rewrites it for free signing. |
+| Info.plist keys | `NSCameraUsageDescription`, `NSLocalNetworkUsageDescription`, `UIRequiredDeviceCapabilities` = `arkit` | Set in `project.yml`. |
 
-Every package version is pinned in `Packages/manifest.json`; no `latest` tags.
+Every dependency is pinned: `Podfile.lock` and, if `Core` ever gains a package dependency,
+`Package.resolved`, both committed. No floating versions.
 
 ### 2.1 Builds without a Mac
 
-Chosen path: **GitHub Actions + GameCI + fastlane to TestFlight.**
+**Development path, decided 2026-11-13.** Workflow `.github/workflows/ios.yml`, run on every
+push to `main` and on manual dispatch.
 
-| Stage | Runner | What it does | Expected time |
+| Job | Runner | Steps | Expected time |
 |---|---|---|---|
-| 1 `unity-ios` | `ubuntu-latest` | `game-ci/unity-builder` with `targetPlatform: iOS` exports the Xcode project; uploads it as an artifact | 15–25 min (T) |
-| 2 `xcode-testflight` | `macos-latest` | `pod install` (MediaPipe), `fastlane gym`, `fastlane pilot upload` | 10–15 min (T) |
+| 1 `core-tests` | `ubuntu-latest` | Install the Swift 6.2 toolchain, `swift test --package-path Core` | 2–4 min (T) |
+| 2 `ios-ipa` (needs 1) | `macos-26` (U: label) | Select Xcode 26.x; `brew install xcodegen`; `xcodegen generate`; `pod install`; `xcodebuild archive -workspace OutlawDuels.xcworkspace -scheme OutlawDuels -destination 'generic/platform=iOS' -archivePath build/OutlawDuels.xcarchive CODE_SIGNING_ALLOWED=NO`; copy the `.app` from the archive into `Payload/` and `zip -r OutlawDuels.ipa Payload`; upload artifact `OutlawDuels-ipa` (retention 7 days (T)) | 8–15 min (T) |
 
-Why this over Codemagic: GameCI documents activation with a Unity Personal licence, and the
-Unity export runs on a Linux runner, so only stage 2 uses macOS minutes. Codemagic's Unity
-workflow asks for a paid Unity serial (U), which Unity Personal does not have.
+Pods and Swift package build products are cached with `actions/cache`, keyed on
+`Podfile.lock`.
 
-Cost: GitHub gives 2,000 free minutes a month on private repos and bills macOS at 10x, so
-stage 2 costs 100–150 minutes per build, about 13–20 builds a month. Public repos are not
+Install, on the Windows laptop: `tools/install.ps1` runs `gh run download --name OutlawDuels-ipa
+--dir build\` for the latest successful run on `main`, then prints the path to open in
+Sideloadly. Sideloadly signs it with the user's free Apple ID and installs it over USB.
+Limits of free signing are in §1A.1. No Apple Developer Program, App Store Connect key or
+TestFlight is needed for development.
+
+Cost: GitHub gives 2,000 free minutes a month on private repos and bills macOS at 10x, so a
+12-minute build uses 120 of them: about 16 device builds a month. Public repos are not
 metered. Both figures (U) — check the current GitHub pricing page.
 
-Requirements regardless of path: Apple Developer Program (US$99/year), an App Store Connect
-API key stored as GitHub secrets (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`), Unity
-licence secrets (`UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`).
+**Release path** (later, with the Apple Developer Program): the same job signs with an App
+Store Connect API key stored as GitHub secrets (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`)
+and uploads through `fastlane pilot` to TestFlight.
 
-Because a device build takes 25–40 minutes, everything that can run in the Windows editor
-must: all of `Core` is plain C# with EditMode tests, and devices are simulated (§13).
+Because a device test takes 15–25 minutes (T) from push to running app, everything that can
+run without a device must: all of `Core` is plain Swift with tests run on Windows by
+`swift test` (§13.2).
 
 ---
 
 ## 3. Repo layout
 
-The Unity project is the repo root.
-
 ```
 D:\Projects\OutlawDuels\
-  PLAN.md
-  .gitignore                      Unity template + *.ulf, *.p8
-  .gitattributes                  LFS for *.png *.wav *.fbx *.task
-  .github/workflows/ios.yml       the two-stage build of §2.1
-  fastlane/Fastfile, Appfile
+  PLAN.md  CLAUDE.md
+  .gitignore                      Xcode, Swift, Pods, build/, *.p8, *.mobileprovision
+  .gitattributes                  LFS for *.png *.wav *.usdz *.task
+  .github/workflows/ios.yml       the two jobs of §2.1
+  project.yml                     XcodeGen spec: one iOS app target, deployment target 17.0
+  Podfile                         pod 'MediaPipeTasksVision'
+  tools/install.ps1               download the latest .ipa, print the Sideloadly step
   tools/export_fletchflow_audio.py   one-off WAV export, run with FletchFlow's venv (§14)
-  Packages/manifest.json
-  ProjectSettings/
-  Assets/
-    OutlawDuels/
-      Core/        OutlawDuels.Core.asmdef       pure C#, no UnityEngine.XR, no Netcode
-      Tracking/    OutlawDuels.Tracking.asmdef   AR session, shared frame, people mask
-      Hands/       OutlawDuels.Hands.asmdef      hand tracker implementations
-      Weapons/     OutlawDuels.Weapons.asmdef    FingerGun, Bow, hit test
-      Net/         OutlawDuels.Net.asmdef        lobby, messages, pose stream
-      Modes/       OutlawDuels.Modes.asmdef      PracticeRange, TeamDeathmatch
-      Replay/      OutlawDuels.Replay.asmdef     killcam buffer, transfer, playback
-      Services/    OutlawDuels.Services.asmdef   profile, leaderboard
-      UI/          OutlawDuels.UI.asmdef         menus, HUD, sync screen
-      Art/Models/  Art/Markers/  Audio/Sfx/  Audio/Music/
-      Scenes/      Boot.unity  Menu.unity  Game.unity
-    Plugins/iOS/   HandTrackerBridge.swift, HandTrackerBridge.mm, Podfile fragment
-    StreamingAssets/hand_landmarker.task
-    Spikes/        throwaway feasibility scenes F1–F4; deleted after §4 passes
-    Tests/EditMode/  Tests/PlayMode/
+  Core/                           Swift package, no dependencies
+    Package.swift                 swift-tools-version 6.0; library product "Core"
+    Sources/Core/
+      Math/         Vec2 Vec3 Quat Pose Ray FrameAlignment HitMath
+      Filters/      KalmanCv1D KalmanCv2D KalmanCv3D OneEuroFilter Smoother2D
+      Hands/        HandPoseSample PalmDepth HandReplayReader
+      Gun/          GunGesture GunTrigger
+      Bow/          BowDraw
+      Combat/       ArrowSim
+      Calibration/  GunCalibrator BowCalibrator CalibrationProfile
+      Range/        Scoring
+      Net/          Messages MessageCodec ServerClock PoseHistory Transport LoopbackTransport
+      Match/        MatchStateMachine LifeStateMachine GameMode
+      Replay/       KillcamClipHeader ClipChunker
+      Services/     LeaderboardService LocalLeaderboardService
+    Tests/CoreTests/              one test file per folder above
+  App/                            the iOS app target; the only code that imports Apple frameworks
+    OutlawDuelsApp.swift
+    Tracking/       ARSessionController SharedFrame PeopleMask CoreBridging
+    Hands/          MediaPipeHandTracker ReplayHandTracker NullHandTracker
+    Weapons/        FingerGunWeapon BowWeapon HitTest
+    Net/            NetworkHost NetworkClient MatchNetwork
+    Modes/          PracticeRange TeamDeathmatch ModeRegistry
+    Replay/         ClipRecorder ClipTransfer ClipPlayer
+    Services/       Profile SupabaseLeaderboardService
+    UI/             SwiftUI views, HUD, sync screen
+    Haptics/        HapticsPlayer
+    Resources/      hand_landmarker.task, Assets.xcassets (AR resource group "SyncMarkers"), Audio/, Art/
+    Spikes/         throwaway feasibility screens F1–F4; deleted after §4 passes
 ```
 
 ### 3.1 Module dependency rule
 
-| Module | May reference |
+`Core` imports `Foundation` only. It does **not** import `simd`, `ARKit`, `RealityKit`,
+`Network`, `UIKit` or `CoreHaptics`, because those do not exist on Windows or Linux (U).
+It has its own `Vec2`, `Vec3`, `Quat`, `Pose` and `Ray` (§12). `App/Tracking/CoreBridging.swift`
+converts to and from `simd` and ARKit types at the boundary.
+
+| App folder | May reference |
 |---|---|
-| `Core` | nothing but `UnityEngine.CoreModule` math types |
-| `Tracking`, `Hands`, `Services` | `Core` |
-| `Weapons` | `Core`, `Tracking`, `Hands` |
+| `Tracking`, `Hands`, `Services`, `Haptics` | `Core` |
+| `Weapons` | `Core`, `Tracking`, `Hands`, `Haptics` |
 | `Net` | `Core` |
-| `Replay` | `Core`, `Net` |
+| `Replay` | `Core`, `Net`, `Tracking` |
 | `Modes` | `Core`, `Weapons`, `Net`, `Replay`, `Services`, `Tracking` |
 | `UI` | everything |
 
-`Core` holds every state machine, filter, formula and data shape in this plan. It is the
-only place FletchFlow logic is ported to, and it is fully testable on Windows.
+The App target is one Xcode target, so the compiler does not enforce the App rows; a review
+checks them. `Core` is a separate package, so the compiler does enforce that it imports
+nothing it should not.
+
+`Core` holds every state machine, filter, formula, wire format and data shape in this plan.
+It is the only place FletchFlow logic is ported to, and it is fully testable on Windows.
 
 ---
 
 ## 4. Feasibility tests (throwaway, before any milestone work beyond M0)
 
-Each is one scene under `Assets/Spikes/`, built to two iPhones through the §2.1 pipeline.
+Each is one SwiftUI screen under `App/Spikes/`, installed on the iPhones through the §2.1
+pipeline. F1 and F3 need two iPhones; the user has one (iPhone 12), so a second phone must
+be borrowed for those two tests (U: whose).
 
 | ID | Question | Method | Pass | Fail action |
 |---|---|---|---|---|
-| F1 | Do two phones agree on position after a marker sync? | Sync per §6. Put phone B on a tape mark 5.00 m from phone A. Each phone logs the other's position in the shared frame for 3 min while both are carried around and returned to their marks every 30 s. | Distance error median <= 0.15 m, p95 <= 0.25 m, at 0 and at 3 min. Sync takes <= 5 s per client. | Switch §6 to an ARKit collaborative session (`ARKitSessionSubsystem.collaborationRequested`, `ARParticipantManager`) (U). |
+| F1 | Do two phones agree on position after a marker sync? | Sync per §6. Put phone B on a tape mark 5.00 m from phone A. Each phone logs the other's position in the shared frame for 3 min while both are carried around and returned to their marks every 30 s. | Distance error median <= 0.15 m, p95 <= 0.25 m, at 0 and at 3 min. Sync takes <= 5 s per client. | Switch §6 to an ARKit collaborative session (`ARWorldTrackingConfiguration.isCollaborationEnabled`, `ARParticipantAnchor`, collaboration data sent through `session(_:didOutputCollaborationData:)`) (U). |
 | F2 | Does hand tracking run fast enough beside AR? | AR session on, rear camera, MediaPipe hand landmarker fed 480x360 frames, people stencil on. Log rates for 5 min. | Hand results >= 25 Hz, capture-to-result latency p95 <= 60 ms, render >= 55 fps, on the oldest test iPhone. No `ProcessInfo.thermalState` of serious within 10 min. | Drop input to 320x240; if still failing, use Apple Vision `VNDetectHumanHandPoseRequest` and re-derive 2D thresholds (§7.6). |
 | F3 | Does the depth-aware people check separate "visible" from "behind a wall" with the shooter's own hand in the way? | Phone A aims at a person holding phone B at 2, 5 and 8 m, 20 trigger pulls each, **always with the finger gun raised and the fingertip over the target**; then the same with the person fully behind a door frame, finger gun still raised over where they are. Log per pull: `count(G)`, `own`, `target`, `fraction`, obscured or not, and the human depth read at the target and at the hand. Repeat the hidden trials with human depth disabled to test the silhouette fallback. | Visible: condition 3 true on >= 90 % of pulls at 2 m and 5 m, >= 75 % at 8 m; `obscured` on <= 10 % of pulls. Hidden: condition 3 false on >= 95 % of pulls, with depth and with the fallback. Human depth at a person at 5 m reads within 1.25 m of the tape distance on >= 90 % of pulls; at the hand it reads < 1.0 m on >= 95 %. | Tune the §8 constants and stencil/depth resolution; if depth is too poor, use the silhouette fallback as the primary rule; if 8 m fails only, set `MAX_RANGE_M` = 6. |
-| F4 | (Bow only; run before M5) Can the selfie camera feed and 6-DoF tracking run together? | `ARCameraManager.requestedFacingDirection = User` with `ARSession.requestedTrackingMode = PositionAndRotation`. Walk a 2 m square, return to start. | Front camera frames >= 30 fps, loop-closure position error <= 0.10 m, world origin unchanged across a rear -> front camera switch (error <= 0.10 m). | Bow aims by gyroscope from a fixed stance; see §9.4. |
+| F4 | (Bow only; run before M5) Can the selfie camera feed and 6-DoF tracking run together? | `ARFaceTrackingConfiguration` with `isWorldTrackingEnabled = true` (check `ARFaceTrackingConfiguration.supportsWorldTracking` on the iPhone 12) (U). Walk a 2 m square, return to start. | Front camera frames >= 30 fps, loop-closure position error <= 0.10 m, world origin unchanged across a rear -> front camera switch (error <= 0.10 m). | Bow aims by gyroscope from a fixed stance; see §9.4. |
 
 ---
 
 ## 5. Coordinates, time and identifiers
 
 - Units: metres, seconds, radians unless a field name says otherwise.
-- Unity axes: left-handed, +X right, +Y up, +Z forward.
+- ARKit axes: right-handed, +X right, +Y up, a camera looks along -Z. `RotY(t)` is a
+  counter-clockwise rotation about +Y seen from above: `x' = x cos t + z sin t`,
+  `z' = -x sin t + z cos t`. The yaw of a horizontal direction `n` is
+  `yaw(n) = atan2(-n.x, -n.z)`, so `yaw(RotY(t) * (0, 0, -1)) = t` (a round-trip test in
+  `Core`). The Unity-era plan used left-handed axes; every formula below uses these.
 - **Local frame**: each phone's ARKit world. Gravity-aligned (+Y up) on every phone.
 - **Shared frame**: origin at the sync marker centre at sync time, +Y up, +Z = the marker's
   outward normal projected onto the horizontal plane. Local and shared frames differ only
-  by a yaw and a translation: `struct FrameAlignment { float yawRad; Vector3 translationM; }`
+  by a yaw and a translation: `struct FrameAlignment { var yawRad: Float; var translationM: Vec3 }`
   with `p_shared = RotY(yawRad) * p_local + translationM`.
-- **Time**: `NetworkManager.ServerTime.Time` (seconds, double). Messages carry it as
-  `uint serverTimeMs`. Hand samples carry local `Time.realtimeSinceStartupAsDouble` and are
-  converted when a shot is built.
-- **Player id**: `byte` slot 0–7 assigned by the host. `Guid playerGuid` persists on the
+- **Time**: the host's clock, `ProcessInfo.systemUptime` on the host (seconds, `Double`).
+  Messages carry it as `UInt32 serverTimeMs` (host uptime in milliseconds, wraps after 49.7
+  days, so compared with wrap-safe subtraction). Hand samples carry the local
+  `ARFrame.timestamp` (also seconds of uptime) and are converted when a shot is built.
+  `Core/Net/ServerClock.swift` keeps the offset `serverTime = localUptime + offset`: on join
+  the client sends 8 `ClockPingMsg` 100 ms apart, each pong gives
+  `offset = tServer - (t0 + rtt/2)`, and the **median** is used; it re-estimates every 5 s
+  (T) from 1 ping and moves the offset by at most 2 ms per update (slew, never a jump).
+  Target accuracy +/- 5 ms (T)(U); the host's own offset is 0.
+- **Player id**: `UInt8` slot 0–7 assigned by the host. `UUID playerGuid` persists on the
   device for reconnects and leaderboards.
 - Max players: 8 (4 v 4) (T). Test target: 2–4 phones.
 
@@ -325,7 +366,7 @@ model. This **replaces** FletchFlow's One Euro filter (`vision/smoothing.py`, pa
 `config.py`). One Euro is still ported, but only as a comparison baseline selectable in the
 Practice Range (§13.1).
 
-One filter class, `Core/Filters/KalmanCv1D.cs`, run independently per axis:
+One filter type, `Core/Sources/Core/Filters/KalmanCv1D.swift`, run independently per axis:
 
 ```
 state      x = [p, v]                      position and velocity of one axis
@@ -341,7 +382,7 @@ init       p = z, v = 0, P = diag(sigma_z^2, V0^2)
 ```
 
 `dt` is always the difference of measurement timestamps, never an assumed frame time.
-`Vector2` and `Vector3` wrappers (`KalmanCv2D`, `KalmanCv3D`) hold one `KalmanCv1D` per axis.
+`Vec2` and `Vec3` wrappers (`KalmanCv2D`, `KalmanCv3D`) hold one `KalmanCv1D` per axis.
 
 | Signal | Units | Update rate | `sigma_z` (measurement) | `sigma_a` (process) | `V0` | Reset |
 |---|---|---|---|---|---|---|
@@ -380,8 +421,8 @@ The host's sync screen shows, in portrait:
 
 | Element | Size on glass | Content |
 |---|---|---|
-| Tracking marker | 60 mm x 60 mm (T). Pixels = `60 / 25.4 * Screen.dpi`. | Fixed image `Assets/OutlawDuels/Art/Markers/sync_marker.png`, also in the app's `XRReferenceImageLibrary` with physical size 0.060 m. |
-| Join QR | 30 mm x 30 mm below the marker | `OD1|<hostIPv4>|7777|<matchId>` encoded with ZXing.Net. |
+| Tracking marker | 60 mm x 60 mm (T). Pixels = `60 / 25.4 * ppi`, with `ppi` from a model table in `Core/Math/DisplayTable.swift` (iPhone 12: 460 (U)), converted to points with `UIScreen.main.scale`. | Fixed image `App/Resources/sync_marker.png`, also in the asset catalog's AR resource group `SyncMarkers` with physical width 0.060 m, used by `ARImageTrackingConfiguration` / `ARWorldTrackingConfiguration.detectionImages`. |
+| Join QR | 30 mm x 30 mm below the marker | `OD1|<hostIPv4>|7777|<matchId>` encoded with CoreImage `CIQRCodeGenerator`. |
 
 The marker is a fixed image rather than the QR itself so ARKit can validate it at build
 time; the QR only carries the address. Manual IP entry is the fallback for joining.
@@ -390,14 +431,15 @@ Procedure:
 
 1. Host holds the phone at chest height, screen toward the clients, rear camera seeing the
    room (so its own tracking stays normal). Leaning it upright against something also works.
-2. Client decodes the QR from `ARCameraManager.TryAcquireLatestCpuImage` at 5 Hz, connects.
-3. Client's `ARTrackedImageManager` reports the marker pose. Host streams its own device
-   pose at 20 Hz.
+2. Client decodes the QR from `ARFrame.capturedImage` with Vision `VNDetectBarcodesRequest`
+   at 5 Hz, connects.
+3. Client's `ARImageAnchor` (session delegate `session(_:didUpdate:)`) reports the marker
+   pose. Host streams its own device pose at 20 Hz.
 4. Client collects samples for `SYNC_WINDOW_S` and solves `FrameAlignment`.
 
 Solve, client side, per sample: marker pose `M_c` in client-local; host device pose `H_h`
 in host-local at the same server time (interpolated); marker pose in host-local
-`M_h = H_h * CAMERA_TO_SCREEN`. Yaw of a pose = `atan2(n.x, n.z)` of its normal `n`
+`M_h = H_h * CAMERA_TO_SCREEN`. Yaw of a pose = `yaw(n)` (§5) of its normal `n`
 projected on the horizontal plane. The host is the reference:
 `host.alignment` maps host-local to shared using `M_h` averaged over the host's first sync;
 `client.yawRad = yaw(M_h in shared) - yaw(M_c)`, `client.translationM = pos(M_h in shared) - RotY(client.yawRad) * pos(M_c)`.
@@ -430,13 +472,16 @@ All of §6 is (U) until F1 passes.
 
 | Class | Where | Use |
 |---|---|---|
-| `MediaPipeHandTracker` | `Hands/`, calls `Plugins/iOS/HandTrackerBridge.swift` | Device. Live-stream mode, 1 hand, confidences 0.5 / 0.5 / 0.5 (P, `config.py` `MIN_*_CONFIDENCE`). |
-| `ReplayHandTracker` | `Hands/` | Editor and tests. Plays `HandPoseSample` JSON-lines files. |
-| `NullHandTracker` | `Hands/` | Menus. |
+| `MediaPipeHandTracker` | `App/Hands/`, calls MediaPipe Tasks `HandLandmarker` directly from Swift | Device. Live-stream mode (`detectAsync`), 1 hand, confidences 0.5 / 0.5 / 0.5 (P, `config.py` `MIN_*_CONFIDENCE`). |
+| `ReplayHandTracker` | `App/Hands/` | Plays `HandPoseSample` JSON-lines files on the phone; `Core/Hands/HandReplayReader.swift` reads the same files in tests on Windows. |
+| `NullHandTracker` | `App/Hands/` | Menus. |
 
-Input: the AR camera CPU image converted to RGBA 480x360 (T), at most 30 Hz, tagged with
-the camera pose of that frame. Landmarks are converted from sensor image coordinates to
-viewport coordinates with the frame's display matrix before leaving `Hands/`.
+Input: `ARFrame.capturedImage` (a `CVPixelBuffer`) scaled to BGRA 480x360 (T), at most 30 Hz,
+passed to MediaPipe as `MPImage(pixelBuffer:orientation:)` with `timestampInMilliseconds` from
+`ARFrame.timestamp`, and tagged with the camera pose of that frame. Landmarks come back
+normalised with a top-left origin; they are converted to viewport units with a bottom-left
+origin through `ARFrame.displayTransform(for: .portrait, viewportSize:)` before leaving
+`App/Hands/`.
 
 ### 7.2 Shape measures (P, `gun/gesture.py`)
 
@@ -452,7 +497,7 @@ curl     = mean(|w16-w0| / |w13-w0|, |w20-w0| / |w17-w0|)   curled ~0.9, open ~1
 ```
 
 The thumb is measured against the index segment with the parameter clamped to [0, 1], not
-the infinite line. Port: `Core/Gun/GunGesture.cs`, function `GunGesture.Measure(in HandPoseSample)`.
+the infinite line. Port: `Core/Sources/Core/Gun/GunGesture.swift`, function `GunGesture.measure(_ sample: HandPoseSample)`.
 
 These are ratios of 3D distances, so they do not depend on which way the hand faces. They
 were tuned with the finger pointing at a webcam; here the camera sees the back of the hand.
@@ -497,7 +542,7 @@ Lookback rule (P): a shot aims from the newest sample in the last 250 ms whose t
 in [0.42, 2.0] (fully cocked); failing that the oldest sample in the window; failing that
 the current one. Dropping the thumb jerks the hand, so the firing frame is not used.
 
-Port: `Core/Gun/GunTrigger.cs`, class `GunTrigger`, method `GunSnapshot Update(in HandPoseSample? sample, double nowSec)`.
+Port: `Core/Sources/Core/Gun/GunTrigger.swift`, struct `GunTrigger`, method `mutating func update(_ sample: HandPoseSample?, nowSec: Double) -> GunSnapshot`.
 The two-hand pick logic of FletchFlow (`GUN_HAND_SWITCH_RADIUS` 0.15) is not ported: the
 tracker runs with one hand.
 
@@ -515,7 +560,7 @@ seen on screen. What the fingertip covers on screen is what gets shot.
   `dx_hat = lerp(dx_prev, (x - x_prev)/dt, alpha(d_cutoff, dt))`;
   `fc = min_cutoff + beta * |dx_hat|`; `x_hat = lerp(x_prev, x, alpha(fc, dt))`.
   First sample and any sample with `t <= t_prev` pass through. Reset when the hand is lost.
-  Port: `Core/Filters/OneEuroFilter.cs`. Both implement `ISmoother2D` so the Practice Range
+  Port: `Core/Sources/Core/Filters/OneEuroFilter.swift`. Both conform to `Smoother2D` so the Practice Range
   can switch `SmootherKind { Kalman, OneEuro }` live.
 - Each `AimSample` stores the fingertip viewport point **and the camera pose of its frame**.
   The shot ray is `Camera.ViewportPointToRay` evaluated with the lookback sample's pose.
@@ -560,7 +605,7 @@ thresholds carry over; they are re-derived from Practice Range telemetry before 
 
 ## 8. Hit test (shooter side)
 
-Port target: `Weapons/HitTest.cs`, pure geometry in `Core/Combat/HitMath.cs`.
+Port target: `App/Weapons/HitTest.swift`, pure geometry in `Core/Sources/Core/Math/HitMath.swift`.
 
 | Constant | Value | |
 |---|---|---|
@@ -723,33 +768,44 @@ camera fix. This is listed in §15.
 
 ## 10. Network
 
-Netcode for GameObjects, host mode, Unity Transport over UDP port 7777. Events are RPCs on
-a single `MatchNetwork : NetworkBehaviour`. The pose stream uses
-`NetworkManager.CustomMessagingManager` named messages so delivery can be unreliable.
+Network.framework, host mode. The host runs one `NWListener` for UDP on port 7777 (pose
+stream and other unreliable messages) and one for TCP on port 7778 (everything reliable).
+A client opens an `NWConnection` of each kind to the address in the join QR. All messages
+are the structs of §12, encoded by `Core/Net/MessageCodec.swift`; `App/Net/NetworkTransport`
+is the `Transport` (§12) that carries them. `App/Net/MatchNetwork` routes decoded messages
+to the match code.
 
-iOS needs `NSLocalNetworkUsageDescription` and `NSCameraUsageDescription` in `Info.plist`.
-No Bonjour and no multicast entitlement: joining is by the QR of §6.
+Reliable messages travel over TCP. Unreliable messages travel over UDP with a `UInt16`
+sequence number per sender and type; a receiver drops any message whose sequence is not
+newer than the last applied one (`Int16(truncatingIfNeeded: seq &- last) > 0`).
+
+iOS needs `NSLocalNetworkUsageDescription` and `NSCameraUsageDescription` in `Info.plist`
+(set in `project.yml`, §2). The first connection triggers the system's Local Network
+permission prompt. No Bonjour and no multicast entitlement: joining is by the QR of §6.
 
 ### 10.1 Messages
 
 | Message | Direction | Delivery | Rate | Payload bytes |
 |---|---|---|---|---|
-| `DevicePoseMsg` | client -> host | UnreliableSequenced | 20 Hz | 28 |
-| `PoseBatchMsg` | host -> each client | UnreliableSequenced | 20 Hz | 4 + 28 per player (228 at 8 players) |
-| `ShotMsg` | client -> host | Reliable | per shot, <= 6.7 Hz | 46 |
-| `HitMsg` | host -> all | Reliable | per hit | 17 |
-| `ShotFxMsg` (tracer for others) | host -> all | Unreliable | per shot | 32 |
-| `LifeStateMsg` | host -> all | Reliable | per change | 12 |
-| `MatchStateMsg` | host -> all | Reliable | per change + every 1 s | 24 |
-| `SyncPoseMsg` (host pose during §6) | host -> syncing client | UnreliableSequenced | 20 Hz | 28 |
-| `KillcamChunkMsg` | via host | ReliableFragmentedSequenced | on kill | 22 header + <= 32,000 |
+| `DevicePoseMsg` | client -> host | UDP, sequenced | 20 Hz | 28 |
+| `PoseBatchMsg` | host -> each client | UDP, sequenced | 20 Hz | 4 + 28 per player (228 at 8 players) |
+| `ShotMsg` | client -> host | TCP | per shot, <= 6.7 Hz | 46 |
+| `HitMsg` | host -> all | TCP | per hit | 17 |
+| `ShotFxMsg` (tracer for others) | host -> all | UDP | per shot | 32 |
+| `LifeStateMsg` | host -> all | TCP | per change | 12 |
+| `MatchStateMsg` | host -> all | TCP | per change + every 1 s | 24 |
+| `SyncPoseMsg` (host pose during §6) | host -> syncing client | UDP, sequenced | 20 Hz | 28 |
+| `ClockPingMsg` / `ClockPongMsg` | client -> host / host -> client | UDP | 8 on join, then 1 every 5 s | 9 / 16 |
+| `KillcamClipHeader` + `KillcamChunkMsg` | via host | TCP | on kill | 22 header; chunk = 4 + <= 32,000 |
 
-Payload sizes are the field-by-field serialized sizes of §12 with no padding (fields are
-written one by one through `INetworkSerializable`, not as a blitted struct).
+Payload sizes are the field-by-field serialized sizes of §12 with no padding, excluding the
+framing: a 1-byte message type, then on UDP a 2-byte sequence number, on TCP a 2-byte length.
+A `KillcamChunkMsg` is `UInt16 clipId, UInt16 index, [UInt8] data`; TCP does the
+retransmission and ordering, so there is no application-level reassembly beyond `index`.
 
-Load at 8 players: the host sends 7 x (228 + ~40 transport overhead) x 20 = about 37.5 kB/s
-(300 kbit/s) and receives 7 x 20 = 140 pose messages a second. A killcam is a 1.0–1.5 MB
-burst (§11).
+Load at 8 players: the host sends 7 x (228 + 31 framing and UDP/IPv4 headers) x 20 = about
+36 kB/s (290 kbit/s) and receives 7 x 20 = 140 pose messages a second. A killcam is a
+1.0–1.5 MB burst (§11).
 
 ### 10.2 Match flow (host is the authority)
 
@@ -796,7 +852,7 @@ Dead players are not tested in §8. There is no physical respawn point in v1 (T)
 | Host silent | Client receives no host message for 3.0 s | "Reconnecting" overlay; 3 attempts 2.0 s apart |
 | Host lost | All 3 attempts fail (about 9 s after the last message) | `MatchEnd(reason = HostLost)`; show the last known scoreboard; return to MENU. No host migration in v1. |
 | Tracking lost | UNTRACKED for > 10 s | Prompt that player to re-scan the host marker; the match continues |
-| App backgrounded | `OnApplicationPause(true)` | Treated as client silent; on resume the AR session relocalises, then the "client returns" row applies |
+| App backgrounded | SwiftUI `scenePhase` becomes `.background` | Treated as client silent; on resume the AR session relocalises, then the "client returns" row applies |
 
 ---
 
@@ -810,14 +866,17 @@ Each phone keeps the last 5 s of what its screen showed (camera plus overlays).
 | `CLIP_FPS` | 15 | (T) |
 | `CLIP_SIZE` | 270 x 480 px portrait | (T) |
 | `CLIP_FRAMES` | 75 | |
-| `CLIP_JPEG_QUALITY` | 60 | (T) about 12–18 kB a frame, 0.9–1.4 MB a clip |
-| Ring buffer memory | 75 x 270 x 480 x 3 bytes = 29 MB RGB24 | |
+| `CLIP_JPEG_QUALITY` | 0.60 (ImageIO `kCGImageDestinationLossyCompressionQuality`) | (T) about 12–18 kB a frame, 0.9–1.4 MB a clip |
+| Ring buffer memory | 75 x 270 x 480 x 4 bytes = 38.9 MB BGRA | |
 | `CLIP_CHUNK_BYTES` | 32,000 | (T) |
 
-Capture: every 4th rendered frame is blitted to a 270x480 `RenderTexture` and read with
-`AsyncGPUReadback` into the ring (`Replay/ClipRecorder.cs`). Nothing is encoded until a
-kill. On a kill, both phones encode their ring to JPEG on a worker thread
-(`ImageConversion.EncodeNativeArrayToJPG`) and send `KillcamClipHeader` plus chunks.
+Capture: every 4th rendered frame is taken in the `ARView` post-process callback
+(`ARView.renderCallbacks.postProcess`), scaled to 270x480 on the GPU
+(`MPSImageBilinearScale`) and copied into a pre-allocated ring of 75 `CVPixelBuffer`s
+(`App/Replay/ClipRecorder.swift`). (U) whether that callback exposes the camera plus
+overlays at a cost under 2 fps; measured in M4. Nothing is encoded until a kill. On a
+kill, both phones encode their ring to JPEG on a background queue (ImageIO
+`CGImageDestination`) and send `KillcamClipHeader` plus chunks.
 
 Routing: the killer's clip goes killer -> host -> victim. The victim's clip stays local.
 The victim sees both side by side for 5.0 s, labelled KILLER and YOU, with the killer's
@@ -830,165 +889,180 @@ Clips exist only in memory, travel only over the LAN and are dropped after playb
 
 ## 12. Data shapes crossing module boundaries
 
-All in `Assets/OutlawDuels/Core/`. Network structs implement `INetworkSerializable` in
-`Net/` via partial types so `Core` stays free of Netcode.
+All in `Core/Sources/Core/`. Plain Swift, `Foundation` only (§3.1). Every wire type has a
+`write(to: inout ByteWriter)` and `init(from: inout ByteReader) throws` in
+`Net/MessageCodec.swift`: fields are written one by one, little-endian, no padding, so the
+byte counts below are exact. The wire form of every message is
+`[UInt8 MsgType][payload]`; TCP adds a `UInt16` length in front, UDP adds a `UInt16`
+sequence number after the type (§10.1). Payload sizes below exclude those.
 
-```csharp
-namespace OutlawDuels.Core
-{
-    public enum WeaponKind : byte { FingerGun = 0, Bow = 1 }
-    public enum Team : byte { None = 0, Red = 1, Blue = 2 }
-    public enum LifeState : byte { Alive, DeadKillcam, Respawning, Protected, Untracked, Disconnected }
-    public enum MatchPhase : byte { Menu, Lobby, Sync, Countdown, Live, End }
-    public enum TrackingQuality : byte { None = 0, Limited = 1, Normal = 2 }
+```swift
+import Foundation
 
-    // Hands -> Weapons. One per tracker result.
-    public struct HandPoseSample
-    {
-        public double captureTimeSec;        // local realtimeSinceStartup of the camera frame
-        public Pose worldFromCamera;         // local frame, metres; camera pose of that frame
-        public bool isRightHand;
-        public float score;                  // 0..1 tracker confidence
-        public Vector2[] viewport;           // 21 points, viewport units 0..1, origin bottom-left
-        public Vector3[] worldM;             // 21 points, metres, hand-centred (MediaPipe world landmarks)
-    }
+public enum WeaponKind: UInt8, Sendable { case fingerGun = 0, bow = 1 }
+public enum Team: UInt8, Sendable { case none = 0, red = 1, blue = 2 }
+public enum LifeState: UInt8, Sendable { case alive, deadKillcam, respawning, protected, untracked, disconnected }
+public enum MatchPhase: UInt8, Sendable { case menu, lobby, sync, countdown, live, end }
+public enum TrackingQuality: UInt8, Sendable { case none = 0, limited = 1, normal = 2 }
+public enum CameraFacing: UInt8, Sendable { case rear, front }
 
-    // Tracking -> Net, 28 bytes on the wire.
-    public struct DevicePoseMsg
-    {
-        public byte playerId;
-        public uint serverTimeMs;
-        public Vector3 positionM;            // shared frame; 3 x float32
-        public short qx, qy, qz, qw;         // rotation, each component * 32767
-        public TrackingQuality tracking;
-        public WeaponKind weapon;
-        public byte flags;                   // bit 0: aiming (gun COCKED or bow DRAWN)
-    }
+// Math, right-handed, metres, ARKit axes (§5): +X right, +Y up, -Z forward for a camera.
+public struct Vec2: Sendable, Equatable { public var x: Float; public var y: Float }
+public struct Vec3: Sendable, Equatable { public var x: Float; public var y: Float; public var z: Float }
+public struct Quat: Sendable, Equatable { public var x: Float; public var y: Float; public var z: Float; public var w: Float }
+public struct Pose: Sendable, Equatable { public var position: Vec3; public var rotation: Quat }
+public struct Ray: Sendable, Equatable { public var origin: Vec3; public var direction: Vec3 }  // direction is unit length
 
-    // Weapons -> Net, shooter -> host, 46 bytes.
-    public struct ShotMsg
-    {
-        public ushort shotId;                // per shooter, wraps
-        public byte shooterId;
-        public WeaponKind weapon;
-        public uint serverTimeMs;            // time of the lookback aim sample (gun) or impact (bow)
-        public Vector3 originM;              // shared frame
-        public Vector3 direction;            // unit; for the bow, the arrow direction at impact
-        public float power;                  // 0..1; 1 for the gun
-        public byte claimedTargetId;         // 255 = miss
-        public float rangeM;                 // t of section 8
-        public float missDistanceM;          // closest approach to the sphere centre
-        public byte maskFraction;            // 0..255 = 0..1; section 8 condition 3 fraction
-    }
+// Hands -> Weapons. One per tracker result.
+public struct HandPoseSample: Sendable {
+    public var captureTimeSec: Double      // ARFrame.timestamp of the camera frame (seconds since boot)
+    public var worldFromCamera: Pose       // local frame, metres; camera pose of that frame
+    public var isRightHand: Bool
+    public var score: Float                // 0...1 tracker confidence
+    public var viewport: [Vec2]            // 21 points, viewport units 0...1, origin bottom-left
+    public var worldM: [Vec3]              // 21 points, metres, hand-centred (MediaPipe world landmarks)
+}
 
-    // Host -> all, 17 bytes.
-    public struct HitMsg
-    {
-        public ushort shotId;
-        public byte shooterId;
-        public byte targetId;
-        public byte damage;
-        public byte targetHpAfter;
-        public bool killed;
-        public uint serverTimeMs;
-        public Vector3 hitPointM;            // shared frame; sent as 3 x int16 centimetres
-    }
+// Tracking -> Net, 28 bytes: 1 + 4 + 12 + 8 + 1 + 1 + 1.
+public struct DevicePoseMsg: Sendable {
+    public var playerId: UInt8
+    public var serverTimeMs: UInt32
+    public var position: Vec3              // shared frame; 3 x Float32
+    public var qx: Int16, qy: Int16, qz: Int16, qw: Int16   // rotation, each component * 32767
+    public var tracking: TrackingQuality
+    public var weapon: WeaponKind
+    public var flags: UInt8                // bit 0: aiming (gun COCKED or bow DRAWN)
+}
 
-    // Persisted per player per weapon: Application.persistentDataPath/calibration.json
-    public struct CalibrationProfile
-    {
-        public int version;                  // 1
-        public Guid playerGuid;
-        public bool gunValid;
-        public float gunTriggerPull;         // default 0.30
-        public float gunTriggerReset;        // default 0.42
-        public Vector2 gunAimOffsetViewport; // default (0, 0)
-        public bool bowValid;
-        public float bowFistOn;              // default 1.25
-        public float bowFistOff;             // default 1.60
-        public float bowDrawFullM;           // default 0.35
-        public long savedUnixMs;
-    }
+// Weapons -> Net, shooter -> host, 46 bytes: 2+1+1+4+12+12+4+1+4+4+1.
+public struct ShotMsg: Sendable {
+    public var shotId: UInt16              // per shooter, wraps
+    public var shooterId: UInt8
+    public var weapon: WeaponKind
+    public var serverTimeMs: UInt32        // time of the lookback aim sample (gun) or impact (bow)
+    public var origin: Vec3                // shared frame
+    public var direction: Vec3             // unit; for the bow, the arrow direction at impact
+    public var power: Float                // 0...1; 1 for the gun
+    public var claimedTargetId: UInt8      // 255 = miss
+    public var rangeM: Float               // t of section 8
+    public var missDistanceM: Float        // closest approach to the sphere centre
+    public var maskFraction: UInt8         // 0...255 = 0...1; section 8 condition 3 fraction
+}
 
-    // Replay -> Net, 22 bytes, precedes the chunks.
-    public struct KillcamClipHeader
-    {
-        public ushort clipId;
-        public byte ownerId;                 // whose point of view
-        public byte victimId;
-        public ushort shotId;
-        public ushort widthPx, heightPx;     // 270, 480
-        public byte fps;                     // 15
-        public byte frameCount;              // 75
-        public uint endServerTimeMs;         // time of the last frame
-        public uint totalBytes;
-        public ushort chunkCount;
-    }
+// Host -> all, 17 bytes: 2+1+1+1+1+1+4+6.
+public struct HitMsg: Sendable {
+    public var shotId: UInt16
+    public var shooterId: UInt8
+    public var targetId: UInt8
+    public var damage: UInt8
+    public var targetHpAfter: UInt8
+    public var killed: Bool
+    public var serverTimeMs: UInt32
+    public var hitPoint: Vec3              // shared frame; sent as 3 x Int16 centimetres
+}
 
-    // Services.
-    public struct LeaderboardEntry
-    {
-        public string boardId;               // "range_gun_60s", "tdm_kills"
-        public Guid playerGuid;
-        public string displayName;           // <= 16 chars
-        public long score;
-        public int rank;                     // 1-based; 0 when submitting
-        public long submittedUnixMs;
-        public string appVersion;
-    }
+// Persisted per player: Application Support/OutlawDuels/calibration.json (Codable, JSONEncoder).
+public struct CalibrationProfile: Codable, Sendable {
+    public var version: Int = 1
+    public var playerGuid: UUID
+    public var gunValid: Bool = false
+    public var gunTriggerPull: Float = 0.30        // default
+    public var gunTriggerReset: Float = 0.42       // default
+    public var gunAimOffsetViewportX: Float = 0    // default 0
+    public var gunAimOffsetViewportY: Float = 0    // default 0
+    public var bowValid: Bool = false
+    public var bowFistOn: Float = 1.25             // default
+    public var bowFistOff: Float = 1.60            // default
+    public var bowDrawFullM: Float = 0.35          // default
+    public var savedUnixMs: Int64 = 0
+}
 
-    public interface IHandTracker
-    {
-        bool IsRunning { get; }
-        float ResultRateHz { get; }
-        void StartTracking(CameraFacing facing);            // Rear for the gun, Front for the bow
-        void StopTracking();
-        bool TryGetLatest(out HandPoseSample sample);       // false if no new sample since the last call
-    }
+// Replay -> Net, 22 bytes, precedes the chunks: 2+1+1+2+2+2+1+1+4+4+2.
+public struct KillcamClipHeader: Sendable {
+    public var clipId: UInt16
+    public var ownerId: UInt8              // whose point of view
+    public var victimId: UInt8
+    public var shotId: UInt16
+    public var widthPx: UInt16, heightPx: UInt16   // 270, 480
+    public var fps: UInt8                  // 15
+    public var frameCount: UInt8           // 75
+    public var endServerTimeMs: UInt32     // time of the last frame
+    public var totalBytes: UInt32
+    public var chunkCount: UInt16
+}
 
-    public interface IWeapon
-    {
-        WeaponKind Kind { get; }
-        CameraFacing RequiredCamera { get; }
-        void Equip(CalibrationProfile profile);
-        void Unequip();
-        // Call once per rendered frame. Returns true and fills shot on the frame a shot leaves.
-        bool Tick(double nowSec, in Pose worldFromCamera, out ShotIntent shot);
-        WeaponHudState Hud { get; }                         // trigger travel or draw power 0..1, aim point, state name
-    }
+// Services.
+public struct LeaderboardEntry: Codable, Sendable {
+    public var boardId: String             // "range_gun_60s", "tdm_kills"
+    public var playerGuid: UUID
+    public var displayName: String         // at most 16 characters
+    public var score: Int64
+    public var rank: Int                   // 1-based; 0 when submitting
+    public var submittedUnixMs: Int64
+    public var appVersion: String
+}
 
-    public struct ShotIntent { public Ray rayLocal; public float power; public double aimTimeSec; }
+// Time sync (§5, §10.1). 9 and 16 bytes.
+public struct ClockPingMsg: Sendable { public var playerId: UInt8; public var t0: Double }          // client uptime seconds
+public struct ClockPongMsg: Sendable { public var t0: Double; public var serverTimeSec: Double }
 
-    public interface IGameMode
-    {
-        string Id { get; }                                  // "practice_range", "team_deathmatch"
-        int MinPlayers { get; }
-        int MaxPlayers { get; }
-        bool UsesTeams { get; }
-        void Enter(MatchContext ctx);                       // players, alignment, services
-        void Tick(double serverTimeSec);
-        void OnShot(in ShotMsg shot);                       // host: validate, apply
-        void OnHit(in HitMsg hit);                          // everyone: effects, score
-        bool IsOver(out MatchResult result);
-        void Exit();
-    }
+public protocol HandTracker: AnyObject {
+    var isRunning: Bool { get }
+    var resultRateHz: Float { get }
+    func startTracking(facing: CameraFacing)       // .rear for the gun, .front for the bow
+    func stopTracking()
+    func takeLatest() -> HandPoseSample?           // nil if no new sample since the last call
+}
 
-    public interface ILeaderboardService
-    {
-        Task<bool> SubmitAsync(LeaderboardEntry entry);
-        Task<IReadOnlyList<LeaderboardEntry>> GetTopAsync(string boardId, int count);
-        Task<LeaderboardEntry?> GetMineAsync(string boardId, Guid playerGuid);
-    }
+public protocol Weapon: AnyObject {
+    var kind: WeaponKind { get }
+    var requiredCamera: CameraFacing { get }
+    func equip(_ profile: CalibrationProfile)
+    func unequip()
+    // Call once per rendered frame. Returns a ShotIntent on the frame a shot leaves.
+    func tick(nowSec: Double, worldFromCamera: Pose) -> ShotIntent?
+    var hud: WeaponHudState { get }                // trigger travel or draw power 0...1, aim point, state name
+}
+
+public struct ShotIntent: Sendable { public var rayLocal: Ray; public var power: Float; public var aimTimeSec: Double }
+
+public protocol GameMode: AnyObject {
+    var id: String { get }                         // "practice_range", "team_deathmatch"
+    var minPlayers: Int { get }
+    var maxPlayers: Int { get }
+    var usesTeams: Bool { get }
+    func enter(_ ctx: MatchContext)                // players, alignment, services
+    func tick(serverTimeSec: Double)
+    func onShot(_ shot: ShotMsg)                   // host: validate, apply
+    func onHit(_ hit: HitMsg)                      // everyone: effects, score
+    func isOver() -> MatchResult?
+    func exit()
+}
+
+public protocol LeaderboardService: Sendable {
+    func submit(_ entry: LeaderboardEntry) async throws -> Bool
+    func top(boardId: String, count: Int) async throws -> [LeaderboardEntry]
+    func mine(boardId: String, playerGuid: UUID) async throws -> LeaderboardEntry?
+}
+
+// Core/Net/Transport.swift. Core talks to the network only through this.
+public protocol Transport: AnyObject {
+    func send(_ payload: [UInt8], to playerId: UInt8?, reliable: Bool)   // nil = every connected player
+    var onReceive: ((_ from: UInt8, _ payload: [UInt8]) -> Void)? { get set }
 }
 ```
 
-`CameraFacing { Rear, Front }`, `WeaponHudState`, `MatchContext` and `MatchResult` are
-plain structs in the same namespace. Future modes (free-for-all, minigames) are new
-`IGameMode` classes registered in `Modes/ModeRegistry.cs`; nothing else changes.
+`WeaponHudState`, `MatchContext` and `MatchResult` are plain structs in `Core`. Future
+modes (free-for-all, minigames) are new `GameMode` classes registered in
+`App/Modes/ModeRegistry.swift`; nothing else changes.
 
-Leaderboard implementations: `LocalLeaderboardService` (JSON in `persistentDataPath`, from
-M1) and `UgsLeaderboardService` (Unity Gaming Services, anonymous sign-in, M6). Scores come
-from the hosting phone and are forgeable; boards are for friends, not a ranked ladder.
+Transport implementations: `LoopbackTransport` (`Core`, in-memory, with configurable delay,
+loss and reordering, used by tests, §13.2) and `NetworkTransport` (`App/Net`,
+Network.framework, §10).
+
+Leaderboard implementations: `LocalLeaderboardService` (JSON in Application Support, from
+M1) and `SupabaseLeaderboardService` (REST through `URLSession`, anonymous key, M6). Scores
+come from the hosting phone and are forgeable; boards are for friends, not a ranked ladder.
 
 ---
 
@@ -1010,17 +1084,17 @@ from the hosting phone and are forgeable; boards are for friends, not a ranked l
 The range also hosts the calibration routines (§7.5, bow equivalent in M5), the `AimMode`
 switch, the `SmootherKind` switch (Kalman or the One Euro baseline, §5.1) with a readout of
 rest jitter and sweep lag for each, and a telemetry toggle that writes every `HandPoseSample`, trigger reading and shot
-to `persistentDataPath/telemetry/*.jsonl` for retuning the (U) thresholds.
+to `Application Support/OutlawDuels/telemetry/*.jsonl` for retuning the (U) thresholds.
 
 ### 13.2 Working on Windows
 
 | Need | Tool |
 |---|---|
-| State machines, filters, hit maths | EditMode tests on `Core` (no device) |
-| Hand input | `ReplayHandTracker` playing recorded `.jsonl` (from the phone, or converted from FletchFlow telemetry) |
-| AR camera and motion | AR Foundation XR Simulation environments (U) |
-| Multiplayer | Multiplayer Play Mode, up to 4 virtual players, each with a scripted pose path |
-| People mask | `FakePeopleMask` returning a configurable fraction |
+| State machines, filters, hit maths, wire codec, match flow | Swift Testing tests in `Core/Tests/CoreTests/`, run with `swift test --package-path Core` on Windows and on the Linux CI job (no device) |
+| Hand input | `HandReplayReader` in `Core` feeds recorded `.jsonl` (from the phone, or converted from FletchFlow telemetry) into `GunTrigger`, `BowDraw` and the filters |
+| AR camera and motion | Device only. The iPhone simulator has no camera or ARKit (§1A.1). Net and match tests use scripted device poses instead. |
+| Multiplayer | `LoopbackTransport` in `Core`: up to 8 virtual players, each with a scripted pose path, configurable delay, loss and reordering. The real `NetworkTransport` is tested on phones from M2. |
+| People mask | `FakePeopleMask` (a `PeopleMask` protocol in `Core`) returning a configurable fraction |
 
 ---
 
@@ -1030,10 +1104,10 @@ to `persistentDataPath/telemetry/*.jsonl` for retuning the (U) thresholds.
 
 | Source (`D:\Projects\FletchFlow\`) | Destination (`D:\Projects\OutlawDuels\`) | Notes |
 |---|---|---|
-| `assets\models\FletchFlow_BowArrow.obj` | `Assets\OutlawDuels\Art\Models\FletchFlow_BowArrow.obj` | Original work, no credit owed. Objects `Bow` (380 tris) and `Arrow` (114 tris), no string. It is git-ignored in FletchFlow, so copy from disk. Used from M5. A `.fbx` re-export from the Blender workspace `Blender Models/FletchFlow/` is preferable if available. |
-| `assets\models\hand_landmarker.task` | `Assets\StreamingAssets\hand_landmarker.task` | Google MediaPipe, Apache-2.0. Also downloaded rather than committed in FletchFlow. |
-| Output of `tools/export_fletchflow_audio.py` | `Assets\OutlawDuels\Audio\Sfx\{shot,hit,bull,miss,cock,crack,shatter,tier,boot,over}.wav` | FletchFlow synthesises these at runtime (`gun/audio.py` `synth_sfx(seed=7)`); the export script does not exist yet and is an M1 task. 44,100 Hz, 16-bit. |
-| same script | `Assets\OutlawDuels\Audio\Music\layer_{0..4}.wav` | `synth_music(seed=11)`: five phase-locked loops at 100 BPM. Layer volumes 0.35 / 0.45 / 0.30 / 0.28 / 0.30 (`GUN_MUSIC_LAYER_VOL`). |
+| `assets\models\FletchFlow_BowArrow.obj` | `App\Resources\Art\FletchFlow_BowArrow.usdz` | Original work, no credit owed. Objects `Bow` (380 tris) and `Arrow` (114 tris), no string. It is git-ignored in FletchFlow, so copy from disk. RealityKit loads USD, not OBJ: export a `.usdz` from Blender (it can do so on Windows) (U). Used from M5. |
+| `assets\models\hand_landmarker.task` | `App\Resources\hand_landmarker.task` | Google MediaPipe, Apache-2.0. Also downloaded rather than committed in FletchFlow. Loaded with `Bundle.main.path(forResource:ofType:)`. |
+| Output of `tools/export_fletchflow_audio.py` | `App\Resources\Audio\Sfx\{shot,hit,bull,miss,cock,crack,shatter,tier,boot,over}.wav` | FletchFlow synthesises these at runtime (`gun/audio.py` `synth_sfx(seed=7)`); the export script does not exist yet and is an M1 task. 44,100 Hz, 16-bit. Played with `AVAudioEngine`. |
+| same script | `App\Resources\Audio\Music\layer_{0..4}.wav` | `synth_music(seed=11)`: five phase-locked loops at 100 BPM. Layer volumes 0.35 / 0.45 / 0.30 / 0.28 / 0.30 (`GUN_MUSIC_LAYER_VOL`). |
 
 SFX volumes to carry (`GUN_SFX_VOL`): shot 0.55, hit 0.6, bull 0.8, miss 0.25, cock 0.35,
 crack 0.7, shatter 0.8, tier 0.6, boot 0.6, over 0.6.
@@ -1042,14 +1116,14 @@ crack 0.7, shatter 0.8, tier 0.6, boot 0.6, over 0.6.
 
 | FletchFlow source | OutlawDuels destination | Section |
 |---|---|---|
-| `vision/smoothing.py` `OneEuroFilter` | `Core/Filters/OneEuroFilter.cs` (baseline only; replaced by the new `Core/Filters/KalmanCv1D.cs`) | §5.1, §7.4 |
-| `gun/gesture.py` `measure_gun` (shape measures only) | `Core/Gun/GunGesture.cs` | §7.2 |
-| `gun/trigger.py` `GunTrigger` | `Core/Gun/GunTrigger.cs` | §7.3 |
-| `input/calibration.py` `Calibrator`, `_thresholds`, `_percentile` | `Core/Calibration/GunCalibrator.cs`, `BowCalibrator.cs` | §7.5, §9.1 |
-| `input/bow_input.py` fist ratio, glitch rule, grace rules | `Core/Bow/BowDraw.cs` | §9.2 |
-| `input/hand_pose.py` palm depth fit | `Core/Hands/PalmDepth.cs` | §9.1 |
-| `game/physics.py` `step_arrows`, `score_for` | `Core/Combat/ArrowSim.cs`, `Core/Range/Scoring.cs` | §9.3, §13.1 |
-| FletchFlow `tests/` cases for the above | `Assets/Tests/EditMode/` | same inputs, same expected outputs |
+| `vision/smoothing.py` `OneEuroFilter` | `Core/Sources/Core/Filters/OneEuroFilter.swift` (baseline only; replaced by the new `Filters/KalmanCv1D.swift`) | §5.1, §7.4 |
+| `gun/gesture.py` `measure_gun` (shape measures only) | `Core/Sources/Core/Gun/GunGesture.swift` | §7.2 |
+| `gun/trigger.py` `GunTrigger` | `Core/Sources/Core/Gun/GunTrigger.swift` | §7.3 |
+| `input/calibration.py` `Calibrator`, `_thresholds`, `_percentile` | `Core/Sources/Core/Calibration/GunCalibrator.swift`, `BowCalibrator.swift` | §7.5, §9.1 |
+| `input/bow_input.py` fist ratio, glitch rule, grace rules | `Core/Sources/Core/Bow/BowDraw.swift` | §9.2 |
+| `input/hand_pose.py` palm depth fit | `Core/Sources/Core/Hands/PalmDepth.swift` | §9.1 |
+| `game/physics.py` `step_arrows`, `score_for` | `Core/Sources/Core/Combat/ArrowSim.swift`, `Range/Scoring.swift` | §9.3, §13.1 |
+| FletchFlow `tests/` cases for the above | `Core/Tests/CoreTests/` | same inputs, same expected outputs |
 
 Not ported: `gun/aim.py` mapping, `input/mapping.py` bow sight, all pygame rendering, the
 neon background and effects.
@@ -1060,15 +1134,15 @@ neon background and effects.
 
 | # | Decision | Default in this plan | Alternative |
 |---|---|---|---|
-| 0 | Engine (§1A.2) | Unity as written | Native Swift, recommended if the spare Mac passes the Xcode gate. Needs the Mac's model, chip, memory and macOS version. |
-| 1 | How iOS builds are produced | **Decided 2026-11-13:** the user's spare Mac (§1A.1), pending the Xcode gate | GitHub Actions + GameCI + fastlane (§2.1) as fallback |
-| 2 | Apple Developer Program, US$99/year | Enrol before M0; nothing reaches an iPhone without it on the default path | With a Mac, free provisioning installs builds that expire after 7 days |
+| 0 | Engine (§1A.2) | **Decided 2026-11-13:** native Swift (the user wants to learn it), built in the cloud | None |
+| 1 | How iOS builds are produced | **Decided 2026-11-13:** GitHub Actions macOS runner producing an unsigned `.ipa`; the spare Mac failed the Xcode gate (§1A.1) | None |
+| 2 | Apple Developer Program, US$99/year | **Decided 2026-11-13:** not for development; Sideloadly with a free Apple ID (7-day re-sign). Enrol when releasing. | Enrol earlier if the free account's limits block a feature |
 | 3 | Repo visibility | Private (about 13–20 device builds a month free) | Public: unmetered macOS minutes |
 | 4 | Oldest iPhone to support | **Decided 2026-11-13:** iPhone 12, iOS 17 | Other testers' phone models still to be listed |
 | 5 | Bow without a see-through view (§9.4) | Arrows through walls is **decided** (§1A.4); the scope view is decided after F4 | Drop the selfie-camera draw and use a different draw gesture |
 | 9 | Self view in gun mode (§1A.5) | Drawn face from the face anchor, after F5 | Hide the corner in gun mode |
-| 6 | Leaderboard backend | Unity Gaming Services | Supabase free tier, or Game Center |
-| 7 | Hand tracker | MediaPipe through a native plugin | Apple Vision (2D, thresholds re-derived) |
+| 6 | Leaderboard backend | Supabase free tier over `URLSession` (works with free signing) | Game Center: needs the Apple Developer Program |
+| 7 | Hand tracker | MediaPipe Tasks from Swift (CocoaPods) | Apple Vision `VNDetectHumanHandPoseRequest` (2D, thresholds re-derived) |
 | 8 | Respawn rule | Timer only (§10.3) | Walk back to a team base marker |
 
 ---
@@ -1077,31 +1151,35 @@ neon background and effects.
 
 | Item | Section | Verified by |
 |---|---|---|
-| Exact Unity, AR Foundation, Netcode, MediaPipe patch versions | §2 | Day 1 of M0 |
-| GameCI activates a Unity Personal licence and exports iOS on Linux; Codemagic needs a paid serial; GitHub minute quotas | §2.1 | M0 |
+| Exact Xcode, Swift, XcodeGen, CocoaPods and MediaPipe patch versions; the `macos-26` runner label and the Xcode it carries | §2 | Day 1 of M0 |
+| An unsigned `.ipa` from `xcodebuild archive` is re-signed by Sideloadly with a free Apple ID and launches on iOS 26.6.1; ARKit, camera and Local Network permission work under free signing; limits on apps and App IDs per week; GitHub minute quotas | §2.1, §1A.1 | M0 |
+| The Swift Windows toolchain builds and tests `Core` (Foundation only) and has Swift Testing | §2, §3.1, §13.2 | M0 |
 | Marker sync accuracy with a 60 mm on-screen marker; `CAMERA_TO_SCREEN` offset | §6 | F1 |
-| MediaPipe Tasks iOS inside a Unity build through CocoaPods; its speed beside ARKit | §7.1 | F2 |
+| MediaPipe Tasks iOS linking under Swift 6 through CocoaPods; its speed beside ARKit | §7.1 | F2 |
+| Clock offset accuracy of +/- 5 ms from the ping scheme | §5 | M2 |
 | Gun thresholds with the camera behind the hand | §7.2, §7.3 | M1 telemetry |
 | Human stencil resolution, range and behaviour behind obstacles | §8 | F3 |
 | Human depth texture: available on every supported iPhone, same resolution as the stencil, accurate enough to separate the shooter's hand (< 1.0 m) from a target at 2–8 m; segmentation quality with a hand close to the lens | §8 condition 3 | F3 |
 | How often the shooter's own hand covers the whole target region (`obscured`) | §8 condition 3 | F3 |
 | Front camera frames with 6-DoF tracking; origin continuity across a camera switch; no rear image meanwhile | §9.4 | F4 |
-| XR Simulation is usable on Windows for these scenes | §13.2 | M0 |
-| Killcam readback and JPEG cost on device | §11 | M4 |
+| `ARView` post-process callback gives camera plus overlays; killcam copy and JPEG cost on device | §11 | M4 |
 
 ---
 
 ## 17. Milestones
 
-Each ends with a TestFlight build. A milestone is done only when every criterion is measured.
+Each ends with an installable `.ipa` from the §2.1 pipeline, installed with Sideloadly. A
+milestone is done only when every criterion is measured.
 
 ### M0 — Toolchain
 
-Unity project, modules and asmdefs of §3, empty AR scene, CI of §2.1.
+`Core` package and `App/` layout of §3, an `ARView` showing the rear camera, `project.yml`,
+`Podfile`, CI of §2.1, `tools/install.ps1`.
 
-- A push to `main` produces a TestFlight build with no manual step; commit to "processing" <= 45 min.
-- The app shows the rear camera at >= 55 fps for 5 min on the oldest test iPhone.
-- EditMode tests run in CI on the Linux stage; >= 1 test per `Core` folder.
+- A push to `main` produces an `.ipa` artifact with no manual step; push to artifact <= 25 min (T).
+- `tools/install.ps1` plus Sideloadly puts that build on the iPhone 12 in <= 5 min, and it launches on iOS 26.6.1.
+- The app shows the rear camera at >= 55 fps for 5 min on the iPhone 12.
+- `swift test --package-path Core` passes on the Windows laptop and in the Linux CI job; >= 1 test per `Core` folder.
 - Every version in §2 replaced by the exact installed number.
 
 ### Feasibility — F1, F2, F3
@@ -1112,14 +1190,14 @@ Run per §4. M2 does not start until F1 passes or its fallback is chosen; M1 nee
 
 `MediaPipeHandTracker`, `GunGesture`, `GunTrigger`, aim, gun calibration, range, audio export.
 
-- Ported EditMode tests: 100 % of the FletchFlow `GunTrigger` and `OneEuroFilter` cases pass.
+- Ported tests (Swift Testing): 100 % of the FletchFlow `GunTrigger` and `OneEuroFilter` cases pass.
 - Hand results >= 25 Hz with render >= 55 fps during a 60 s round.
 - Trigger: of 50 deliberate thumb drops, >= 47 fire (94 %); <= 1 unintended shot in 60 s of holding the gun cocked.
 - Thumb-drop to tracer on screen: p95 <= 150 ms (240 fps video of phone plus hand, 10 pulls).
 - Accuracy after calibration: >= 9 of 10 shots within 0.10 m of the aimed point on a 5 m target.
 - Calibration finishes in <= 20 s and survives an app restart.
 - Smoothing, measured in the range for Kalman and for the One Euro baseline: fingertip jitter with the hand held still <= 0.003 viewport (standard deviation over 3 s); lag behind the raw fingertip during a 1 viewport/s sweep <= 35 ms. Kalman stays the default only if it meets both; the measured pair for each filter is recorded in §5.1.
-- `KalmanCv1D` EditMode tests: a constant-velocity input with Gaussian noise of `sigma_z` converges to within 10 % of the true velocity in <= 0.5 s; a single 10-sigma outlier moves the estimate by 0.
+- `KalmanCv1D` tests: a constant-velocity input with Gaussian noise of `sigma_z` converges to within 10 % of the true velocity in <= 0.5 s; a single 10-sigma outlier moves the estimate by 0.
 - Telemetry file written for every round with the toggle on.
 
 ### M2 — Lobby, sync, pose stream
@@ -1140,7 +1218,7 @@ Hit test of §8, damage, life states, match flow, scoreboard, tracers and hit fe
 - 2 v 2 on 4 phones completes a full match to 10 kills without a crash or desync, 3 times in a row.
 - Hit registration: at 5 m, >= 8 of 10 well-aimed shots at a visible opponent register; 0 of 10 register on an opponent fully behind a wall or door.
 - Shot to HP change on the victim's screen: p95 <= 200 ms.
-- Every transition in §10.2, §10.3 and §10.4 has a PlayMode test with simulated players.
+- Every transition in §10.2, §10.3 and §10.4 has a `Core` test with simulated players on `LoopbackTransport`.
 - Host force-quit: every client is back at the menu with the last scoreboard shown in <= 12 s.
 - 10 min match: no thermal state of serious, battery use <= 8 % on the oldest phone.
 
@@ -1165,7 +1243,8 @@ F4 first, then `BowDraw`, `PalmDepth`, `ArrowSim`, bow calibration, weapon choic
 
 ### M6 — Leaderboards and wider testing
 
-`UgsLeaderboardService`, display names, TestFlight external testers.
+`SupabaseLeaderboardService`, display names, TestFlight external testers (needs the Apple
+Developer Program, §15 #2).
 
 - A Practice Range score submitted on phone A appears in the top list on phone B in <= 5 s.
 - With no internet the game is fully playable and scores queue locally, uploading within 10 s of reconnecting.

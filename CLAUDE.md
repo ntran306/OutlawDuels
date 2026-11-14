@@ -6,12 +6,18 @@ first; §1A holds the newest decisions and overrides later sections where they c
 
 ## State as of 2026-11-13
 
-- Only planning exists. No code, no Unity or Xcode project.
-- Open decision blocking everything else: engine, Unity or native Swift (`PLAN.md` §1A.2).
-  It depends on whether the user's spare Mac can install the Xcode version Apple requires.
-  Ask for the Mac's model, chip, memory and macOS version if still unknown.
-- Hardware: Windows 11 laptop (this repo at `D:\Projects\OutlawDuels`), a spare Mac for
-  builds, one iPhone 12 for testing.
+- Only planning exists. No code, no Swift package, no Xcode project.
+- The spare Mac is out as a build machine: macOS 10.15 (Catalina), no newer macOS offered,
+  while the iPhone runs iOS 26.6.1 and needs Xcode 26 (U). Builds go through a GitHub
+  Actions macOS runner as an unsigned `.ipa`; Sideloadly on the Windows laptop signs it
+  with a free Apple ID (7-day expiry) and installs it. Apple Developer Program only at
+  release (`PLAN.md` §1A.1, §2.1).
+- Engine decided 2026-11-13: native Swift (the user wants to learn it). `PLAN.md` §2, §3,
+  §5, §6, §10–§14 and §17 were rewritten for it. Logic lives in the pure-Swift package
+  `Core/` (Foundation only, tested on Windows with `swift test`); only the `App/` target
+  touches Apple frameworks. Swift on Windows is unverified (U), checked in M0.
+- Hardware: Windows 11 laptop (this repo at `D:\Projects\OutlawDuels`), one iPhone 12 on
+  iOS 26.6.1 for testing, and an old Mac that cannot build.
 - Nothing in the plan has been tested on a device. Items marked (U) are unverified.
 
 ## How the work is organised
