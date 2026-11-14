@@ -2,7 +2,11 @@
 
 AR combat game for iPhone: players in the same real room shoot each other with a finger
 gun (rear camera, thumb drop to fire) or a bow (phone as bow, fist draw). Read `PLAN.md`
-first; §1A holds the newest decisions and overrides later sections where they conflict.
+first; §1A and §1B hold the newest decisions and override later sections where they
+conflict. §17 is the phase order: Phase 0 toolchain and recorder, Phase 1 finger gun core
+(Kalman aim, detection, trajectory, effects), Phase 2 Practice Range minigame, Phase 3
+multiplayer finger gun 1 v 1 (the main goal), then team play, killcam, bow, leaderboards.
+§19 lists what the user must install, pay for and test.
 
 ## State as of 2026-11-13
 
@@ -50,3 +54,6 @@ files. To port code on another machine, clone FletchFlow there as well; its bow 
 - Screen as plain as possible: camera view, HP and ammunition top left, menu top right,
   self view in a bottom corner.
 - Gun first, bow second. Same Wi-Fi first, host hotspot as fallback.
+- Players are told apart by colour markers, not name tags. Maximum 10 players (5 v 5).
+- Camera-based correction of other players' positions is wanted (`PLAN.md` §1B.7).
+- The user's main Apple ID is used for Sideloadly signing; a separate one is optional.
