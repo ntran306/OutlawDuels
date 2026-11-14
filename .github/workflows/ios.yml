@@ -1,0 +1,38 @@
+name: ios
+
+# PLAN.md §2.1. Step 0b: Core tests in the cloud. The ios-ipa job is added in step 0c.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    # Official Swift image; 6.2 per §2.1. Change to match Xcode's Swift once
+    # the xcode-swift job below has recorded it.
+    container: swift:6.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Core tests
+        run: swift test --package-path Core
+
+  # Records the Xcode and Swift versions on the build runner (§2, U) and runs the
+  # Core tests under that Swift, so a language feature it rejects fails here.
+  xcode-swift:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode and Swift versions
+        run: |
+          xcodebuild -version
+          swift --version
+          ls /Applications | grep -i xcode
+      - name: Core tests under Xcode's Swift
+        run: swift test --package-path Core
