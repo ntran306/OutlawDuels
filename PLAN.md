@@ -1711,7 +1711,7 @@ occlusion check, an Android port of gun mode.
 | Account | Purpose | Note |
 |---|---|---|
 | GitHub (`ntran306`) | Repo and cloud builds | The repo is public, so macOS build minutes are not metered (U: check the billing page). |
-| Apple ID for signing | Sideloadly signs each build with it | The user's main Apple ID works and is what they already sideload with. A separate Apple ID is an optional precaution, not a requirement: Sideloadly is not made by Apple and the Apple ID password is typed into it. Keep two-factor on either way. |
+| Apple ID for signing | Sideloadly signs each build with it | **Changed 2026-11-14:** the user's main Apple ID is flagged. After sideloading a modified Spotify, every install with it fails with `0xe8008024 (The provisioning profile is banned.)`, OutlawDuels included, and once with `0xe8008018 (The identity used to sign the executable is no longer valid.)`. OutlawDuels is now signed with a **separate free Apple ID used for nothing else**: no modified or third-party apps are installed with it except LiveContainer (below). The phone stays signed in to the main Apple ID; only Sideloadly's Apple ID field changes. A new Apple ID needs a phone number for two-factor, and the user's own number can be reused. If the second Apple ID also gets `0xe8008024`, the flag is probably on the device: enrol in the Apple Developer Program early (§15 row 2). |
 | Supabase | Online leaderboard | Phase 7 only; free tier. |
 
 ### 19.3 Installs on the Windows laptop (all free)
@@ -1733,6 +1733,7 @@ occlusion check, an Android port of gun mode.
 | Allow Camera and Local Network when the app asks | Once per install |
 | Re-sign and reinstall with Sideloadly | Every 7 days |
 | Keep at most 3 sideloaded apps on the phone | Always (free-account limit) |
+| Install LiveContainer once with Sideloadly (signed by the OutlawDuels Apple ID), and run every other sideloaded app (Spotify and the like) inside it, never as its own Sideloadly install. Apps inside LiveContainer are re-signed with LiveContainer's certificate, so their bundle ids never reach Apple and use no App IDs (10 per 7 days per free account), which avoids another provisioning ban. OutlawDuels itself is always installed directly, never inside LiveContainer: camera, entitlements and Local Network can behave differently there and would spoil device tests. (U: LiveContainer support for iOS 26.6.1; check its GitHub releases before installing.) | Once, then re-sign every 7 days with OutlawDuels |
 
 ### 19.5 Tests only the user can run
 

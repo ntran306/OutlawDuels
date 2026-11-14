@@ -70,4 +70,6 @@ files. To port code on another machine, clone FletchFlow there as well; its bow 
 - Gun first, bow second. Same Wi-Fi first, host hotspot as fallback.
 - Players are told apart by colour markers, not name tags. Maximum 10 players (5 v 5).
 - Camera-based correction of other players' positions is wanted (`PLAN.md` §1B.7).
-- The user's main Apple ID is used for Sideloadly signing; a separate one is optional.
+- Sideloadly signing uses a separate free Apple ID kept only for OutlawDuels; the main one
+  is flagged ("provisioning profile is banned", 2026-11-14). Other sideloaded apps run inside
+  LiveContainer, never as their own Sideloadly installs (`PLAN.md` §19.2, §19.4).
