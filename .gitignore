@@ -1,0 +1,44 @@
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+*.csproj
+*.sln
+*.pidb
+*.booproj
+*.unityproj
+*.apk
+*.aab
+*.unitypackage
+
+# Xcode / Swift
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.ipa
+*.dSYM.zip
+*.dSYM
+.build/
+Pods/
+
+# Secrets and licences
+*.ulf
+*.p8
+*.mobileprovision
+*.p12
+.env
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.vs/
+.vscode/
+.idea/
+
+# Session exports
+session-export-*.zip
