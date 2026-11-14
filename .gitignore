@@ -42,3 +42,7 @@ Thumbs.db
 
 # Session exports
 session-export-*.zip
+
+# XcodeGen output (generated on the CI runner)
+*.xcodeproj
+App/Info.plist

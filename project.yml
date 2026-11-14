@@ -1,0 +1,50 @@
+# XcodeGen spec (PLAN.md §2, §3). Generates OutlawDuels.xcodeproj on the CI runner;
+# the generated project and App/Info.plist are not committed.
+name: OutlawDuels
+
+options:
+  bundleIdPrefix: com.ntran306
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  Core:
+    path: Core
+
+targets:
+  OutlawDuels:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    dependencies:
+      - package: Core
+        product: Core
+    scheme: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ntran306.outlawduels
+        PRODUCT_NAME: OutlawDuels
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: OutlawDuels
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIRequiredDeviceCapabilities:
+          - arkit
+        UIRequiresFullScreen: true
+        NSCameraUsageDescription: OutlawDuels uses the camera to show the room and track your hand.
+        NSLocalNetworkUsageDescription: OutlawDuels finds other players and the dev server on your Wi-Fi.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true

@@ -17,7 +17,8 @@ multiplayer finger gun 1 v 1 (the main goal), then team play, killcam, bow, lead
   passed a Swift Testing test; edit-build-test took 7 s), GitHub CLI 2.104.0 signed in with
   `repo` and `workflow` scopes, Sideloadly with desktop iTunes and iCloud. `swift` and `gh`
   are on the path only in terminals opened after the install.
-- The laptop's Swift is newer than the one inside Xcode 26.6 on the build runner (U: which),
+- The laptop's Swift is newer than the one inside Xcode 26.6 on the build runner (6.3.3,
+  verified in CI 2026-11-14),
   so `Core` must avoid language features the older one rejects.
 - The spare Mac is out as a build machine: macOS 10.15 (Catalina), no newer macOS offered,
   while the iPhone runs iOS 26.6.1 and needs Xcode 26 (U). Builds go through a GitHub

@@ -532,15 +532,15 @@ public struct RosterMsg: Sendable { public var players: [RosterEntry] }
 
 | Item | Pin | Note |
 |---|---|---|
-| Xcode | 26.6, the default on the `macos-26` runner image (per the runner release notes of 2026-07/08) | Confirm in the first CI log and pin it in `.github/workflows/ios.yml`. iOS 26.6.1 on the test phone needs Xcode 26 to build for it. |
-| Swift | The version in Xcode 26.6 on the build runner (U: exact number, read from the first CI log); 6.4.2 on the Windows laptop; Swift 6 language mode | `Core` uses `swift-tools-version: 6.0`. Strict concurrency is on from day 1. |
+| Xcode | 26.6 (build 17F113), the default on the `macos-26` runner image; **verified 2026-11-14** in CI run 43634944589 | Pinned in `.github/workflows/ios.yml` with `xcode-select -s /Applications/Xcode_26.6.app`. iOS 26.6.1 on the test phone needs Xcode 26 to build for it. |
+| Swift | 6.3.3 in Xcode 26.6 on the build runner (**verified 2026-11-14**, `swiftlang-6.3.3.1.3`); 6.4.2 on the Windows laptop; Swift 6 language mode | `Core` uses `swift-tools-version: 6.0`. Strict concurrency is on from day 1. |
 | Deployment target | iOS 17.0 | (T) set from the oldest supported phone, §15 #4. People segmentation needs A12 or newer. |
 | System frameworks | SwiftUI, ARKit, RealityKit (`ARView`), Network, CoreHaptics, AVFoundation, Vision, CoreImage, ImageIO | No third-party package for these. |
 | MediaPipe Tasks Vision | Swift Package Manager product from `https://github.com/google-ai-edge/mediapipe`, pinned to one revision in `project.yml` | (U) product name, the revision, and that it links under Swift 6; same `hand_landmarker.task` model as FletchFlow. CocoaPods (`MediaPipeTasksVision` 0.10.x) is the fallback. May be dropped entirely if Apple Vision wins the Phase 1 comparison (§1B.1 #9). |
 | CocoaPods | Not used (§1B.1 #8) | Fallback only, if the MediaPipe Swift package fails to build. |
 | XcodeGen | 2.4x on the runner | (U) exact patch. `project.yml` generates `OutlawDuels.xcodeproj` on the runner, because no Xcode project can be authored on Windows. The generated project is not committed. |
 | Test framework | Swift Testing (`import Testing`) in `Core/Tests/CoreTests/` | Swift Testing is present in the Windows toolchain (verified 2026-11-14, library version 6.4.2). |
-| Windows toolchain | Swift 6.4.2 for Windows (installed 2026-11-14 with `winget`, id `Swift.Toolchain`), with Visual Studio 2022 Community 17.14 ("Desktop development with C++") and Windows SDK 10.0.26100 | **Verified 2026-11-14** on a throwaway package: `swift test` builds and runs a Swift Testing test; an edit-build-test cycle took 7 s. The laptop's Swift (6.4.2) is newer than the one in Xcode 26.6 (U: which), so `Core` must use only language features both accept; the Linux CI job should install the same Swift as Xcode's to catch that. |
+| Windows toolchain | Swift 6.4.2 for Windows (installed 2026-11-14 with `winget`, id `Swift.Toolchain`), with Visual Studio 2022 Community 17.14 ("Desktop development with C++") and Windows SDK 10.0.26100 | **Verified 2026-11-14** on a throwaway package: `swift test` builds and runs a Swift Testing test; an edit-build-test cycle took 7 s. The laptop's Swift (6.4.2) is newer than the one in Xcode 26.6 (6.3.3), so `Core` must use only language features both accept; the Linux CI job uses the `swift:6.3` container and the `xcode-swift` job runs the `Core` tests under Xcode's own Swift to catch that. |
 | QR | Encode with CoreImage `CIQRCodeGenerator`; decode with Vision `VNDetectBarcodesRequest` | Replaces ZXing.Net. |
 | Orientation | Portrait, locked | (T) one hand holds the phone, the other makes the gun. |
 | Frame rate | `ARView` at 60 fps (`preferredFramesPerSecond = 60`) | |
@@ -557,7 +557,8 @@ push to `main` and on manual dispatch.
 
 | Job | Runner | Steps | Expected time |
 |---|---|---|---|
-| 1 `core-tests` | `ubuntu-latest` | Install the Swift 6.2 toolchain, `swift test --package-path Core` | 2–4 min (T) |
+| 1 `core-tests` | `ubuntu-latest`, container `swift:6.3` | `swift test --package-path Core` | 45 s measured 2026-11-14 |
+| 1b `xcode-swift` | `macos-26` | Print `xcodebuild -version` and `swift --version`; `swift test --package-path Core` under Xcode's Swift | 34 s measured 2026-11-14 |
 | 2 `ios-ipa` (needs 1) | `macos-26` | Select Xcode 26.x; `brew install xcodegen`; `xcodegen generate`; `xcodebuild archive -project OutlawDuels.xcodeproj -scheme OutlawDuels -destination 'generic/platform=iOS' -archivePath build/OutlawDuels.xcarchive CODE_SIGNING_ALLOWED=NO`; copy the `.app` from the archive into `Payload/` and `zip -r OutlawDuels.ipa Payload`; upload artifact `OutlawDuels-ipa` (retention 7 days (T)) | 8–15 min (T) |
 
 Swift package checkouts and build products are cached with `actions/cache`, keyed on
