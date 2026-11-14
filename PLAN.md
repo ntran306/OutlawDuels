@@ -533,14 +533,14 @@ public struct RosterMsg: Sendable { public var players: [RosterEntry] }
 | Item | Pin | Note |
 |---|---|---|
 | Xcode | 26.6, the default on the `macos-26` runner image (per the runner release notes of 2026-07/08) | Confirm in the first CI log and pin it in `.github/workflows/ios.yml`. iOS 26.6.1 on the test phone needs Xcode 26 to build for it. |
-| Swift | 6.2 (the version in Xcode 26), Swift 6 language mode | (U) `Core` uses `swift-tools-version: 6.0`. Strict concurrency is on from day 1. |
+| Swift | The version in Xcode 26.6 on the build runner (U: exact number, read from the first CI log); 6.4.2 on the Windows laptop; Swift 6 language mode | `Core` uses `swift-tools-version: 6.0`. Strict concurrency is on from day 1. |
 | Deployment target | iOS 17.0 | (T) set from the oldest supported phone, §15 #4. People segmentation needs A12 or newer. |
 | System frameworks | SwiftUI, ARKit, RealityKit (`ARView`), Network, CoreHaptics, AVFoundation, Vision, CoreImage, ImageIO | No third-party package for these. |
 | MediaPipe Tasks Vision | Swift Package Manager product from `https://github.com/google-ai-edge/mediapipe`, pinned to one revision in `project.yml` | (U) product name, the revision, and that it links under Swift 6; same `hand_landmarker.task` model as FletchFlow. CocoaPods (`MediaPipeTasksVision` 0.10.x) is the fallback. May be dropped entirely if Apple Vision wins the Phase 1 comparison (§1B.1 #9). |
 | CocoaPods | Not used (§1B.1 #8) | Fallback only, if the MediaPipe Swift package fails to build. |
 | XcodeGen | 2.4x on the runner | (U) exact patch. `project.yml` generates `OutlawDuels.xcodeproj` on the runner, because no Xcode project can be authored on Windows. The generated project is not committed. |
-| Test framework | Swift Testing (`import Testing`) in `Core/Tests/CoreTests/` | XCTest only if Swift Testing is missing from the Windows toolchain (U). |
-| Windows toolchain | Swift 6.2 release from swift.org for Windows, with Visual Studio Build Tools and the Windows SDK | (U) it builds and tests `Core`; see §16. |
+| Test framework | Swift Testing (`import Testing`) in `Core/Tests/CoreTests/` | Swift Testing is present in the Windows toolchain (verified 2026-11-14, library version 6.4.2). |
+| Windows toolchain | Swift 6.4.2 for Windows (installed 2026-11-14 with `winget`, id `Swift.Toolchain`), with Visual Studio 2022 Community 17.14 ("Desktop development with C++") and Windows SDK 10.0.26100 | **Verified 2026-11-14** on a throwaway package: `swift test` builds and runs a Swift Testing test; an edit-build-test cycle took 7 s. The laptop's Swift (6.4.2) is newer than the one in Xcode 26.6 (U: which), so `Core` must use only language features both accept; the Linux CI job should install the same Swift as Xcode's to catch that. |
 | QR | Encode with CoreImage `CIQRCodeGenerator`; decode with Vision `VNDetectBarcodesRequest` | Replaces ZXing.Net. |
 | Orientation | Portrait, locked | (T) one hand holds the phone, the other makes the gun. |
 | Frame rate | `ARView` at 60 fps (`preferredFramesPerSecond = 60`) | |
@@ -1500,7 +1500,7 @@ neon background and effects.
 | Printed marker gives lower yaw error than the on-screen marker | §1B.4 | F1 |
 | Free Apple ID signing on a second person's phone | §19.5 | Phase 3b |
 | An unsigned `.ipa` from `xcodebuild archive` is re-signed by Sideloadly with a free Apple ID and launches on iOS 26.6.1; ARKit, camera and Local Network permission work under free signing; limits on apps and App IDs per week; GitHub minute quotas | §2.1, §1A.1 | M0 |
-| The Swift Windows toolchain builds and tests `Core` (Foundation only) and has Swift Testing | §2, §3.1, §13.2 | M0 |
+| The Swift Windows toolchain builds and tests a package and has Swift Testing: **verified 2026-11-14** (Swift 6.4.2). Still open: `Core` itself, once it exists, and the Swift version gap between the laptop and Xcode 26.6 | §2, §3.1, §13.2 | Phase 0 |
 | Marker sync accuracy with a 60 mm on-screen marker; `CAMERA_TO_SCREEN` offset | §6 | F1 |
 | MediaPipe Tasks iOS linking under Swift 6 as a Swift package; its speed beside ARKit | §7.1 | F2 |
 | Clock offset accuracy of +/- 5 ms from the ping scheme | §5 | M2 |
@@ -1542,6 +1542,18 @@ Work order inside every phase: `Core` code and tests on Windows first, device bu
 `Core` package and `App/` layout of §3, an `ARView` showing the rear camera, `project.yml`,
 CI of §2.1, `tools/install.ps1`, and the three tools of §1B.6. Both hand trackers
 (MediaPipe and Apple Vision) run in the recorder.
+
+Step order, smallest proof first, so a failure points at one thing:
+
+| Step | Work | Proves |
+|---|---|---|
+| 0a | `Core/Package.swift`, `Vec3`, one test; `swift test` on the laptop | The laptop loop (toolchain verified 2026-11-14) |
+| 0b | `.github/workflows/ios.yml` job `core-tests` | Tests run in the cloud; records the Swift version inside Xcode 26.6 |
+| 0c | `project.yml`, a SwiftUI app with one `ARView`, job `ios-ipa`, `tools/install.ps1`, Sideloadly install | The whole build-and-install path, with no third-party code in it |
+| 0d | `Tuning`, `Log`, `tools/devserver.py`, dev-server setting | Live tuning and logs |
+| 0e | Recorder with the Apple Vision hand tracker only | Recording format, upload, `HandReplayReader` |
+| 0f | MediaPipe added as a Swift package, second tracker in the recorder | The one third-party dependency (U); if it will not build, Phase 1 proceeds on Vision alone |
+| 0g | The user makes the seven recordings of §19.5 | Data for Phase 1 |
 
 - A push to `main` produces an `.ipa` artifact with no manual step; push to artifact <= 25 min (T).
 - `tools/install.ps1` plus Sideloadly puts that build on the iPhone 12 in <= 5 min, and it launches on iOS 26.6.1 with the camera working.
@@ -1703,9 +1715,9 @@ occlusion check, an Android port of gun mode.
 
 | Tool | Purpose | State on 2026-11-13 |
 |---|---|---|
-| Swift 6.2 toolchain for Windows, with Visual Studio Build Tools 2022 ("Desktop development with C++") and the Windows SDK | `swift test` on `Core` | Not checked |
-| GitHub CLI (`winget install GitHub.cli`, then `gh auth login`) | `tools/install.ps1` downloads the build with it | **Not installed** |
-| iTunes and iCloud from apple.com, not the Microsoft Store | Sideloadly needs them to reach the phone | Not checked |
+| Swift toolchain for Windows, with Visual Studio 2022 ("Desktop development with C++") and the Windows SDK | `swift test` on `Core` | **Installed and verified 2026-11-14:** Swift 6.4.2 |
+| GitHub CLI, then `gh auth login` | `tools/install.ps1` downloads the build with it; Claude reads build logs with it | **Installed and signed in 2026-11-14:** 2.104.0, token scopes include `repo` and `workflow`. |
+| iTunes and iCloud from apple.com, not the Microsoft Store | Sideloadly needs them to reach the phone | Both desktop versions present (checked 2026-11-14) |
 | Sideloadly | Signs and installs the `.ipa` | Installed |
 | Python 3 | `tools/devserver.py`, audio export | Present (FletchFlow uses it) |
 

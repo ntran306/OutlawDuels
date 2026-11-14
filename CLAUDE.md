@@ -8,9 +8,17 @@ conflict. §17 is the phase order: Phase 0 toolchain and recorder, Phase 1 finge
 multiplayer finger gun 1 v 1 (the main goal), then team play, killcam, bow, leaderboards.
 §19 lists what the user must install, pay for and test.
 
-## State as of 2026-11-13
+## State as of 2026-11-14
 
-- Only planning exists. No code, no Swift package, no Xcode project.
+- Planning is complete enough to start. No code exists yet: no Swift package, no Xcode
+  project. The next work is Phase 0 (`PLAN.md` §17), in the step order 0a–0g given there,
+  done in an implementation session separate from the hub session.
+- Laptop tools installed and checked 2026-11-14: Swift 6.4.2 (a throwaway package built and
+  passed a Swift Testing test; edit-build-test took 7 s), GitHub CLI 2.104.0 signed in with
+  `repo` and `workflow` scopes, Sideloadly with desktop iTunes and iCloud. `swift` and `gh`
+  are on the path only in terminals opened after the install.
+- The laptop's Swift is newer than the one inside Xcode 26.6 on the build runner (U: which),
+  so `Core` must avoid language features the older one rejects.
 - The spare Mac is out as a build machine: macOS 10.15 (Catalina), no newer macOS offered,
   while the iPhone runs iOS 26.6.1 and needs Xcode 26 (U). Builds go through a GitHub
   Actions macOS runner as an unsigned `.ipa`; Sideloadly on the Windows laptop signs it
@@ -19,7 +27,7 @@ multiplayer finger gun 1 v 1 (the main goal), then team play, killcam, bow, lead
 - Engine decided 2026-11-13: native Swift (the user wants to learn it). `PLAN.md` §2, §3,
   §5, §6, §10–§14 and §17 were rewritten for it. Logic lives in the pure-Swift package
   `Core/` (Foundation only, tested on Windows with `swift test`); only the `App/` target
-  touches Apple frameworks. Swift on Windows is unverified (U), checked in M0.
+  touches Apple frameworks.
 - Hardware: Windows 11 laptop (this repo at `D:\Projects\OutlawDuels`), one iPhone 12 on
   iOS 26.6.1 for testing, and an old Mac that cannot build.
 - Nothing in the plan has been tested on a device. Items marked (U) are unverified.
