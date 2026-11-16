@@ -195,6 +195,10 @@ finger gun detection from recordings (Phase 1, §7); shot resolution and effects
 §1B.3); Practice Range with magazine and HUD (Phase 2); bot duel (Phase 3a, §1B.4);
 networking and frame alignment (Phase 3b).
 
+Written: **GUI, theme, animations and audio** — `docs/GUI.md` (2026-11-16, "High Noon"
+direction chosen by the user; built before the remaining Phase 0 steps). Its audio list
+replaces the FletchFlow sound export of §14.1.
+
 ---
 
 ## 1B. Review and phase order, 2026-11-13 (second pass)

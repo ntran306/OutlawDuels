@@ -15,6 +15,14 @@ public struct Tuning: Codable, Sendable, Equatable {
     public var devTuningPollS: Double = 2.0
     public var devLogUploadS: Double = 5.0
 
+    // docs/GUI.md §2 motion tokens
+    public var uiTransitionMs: Double = 450
+    public var uiFadeOutMs: Double = 150
+    public var uiFadeInMs: Double = 250
+    public var uiStaggerMs: Double = 40
+    public var uiLaunchMs: Double = 1600
+    public var uiDuskMs: Double = 500
+
     // §1A.3 health, damage, ammunition; §10.3 life state
     public var gunBaseDamage: Double = 10
     public var resistFloor: Double = 0.5

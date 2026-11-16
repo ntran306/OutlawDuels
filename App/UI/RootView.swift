@@ -1,71 +1,79 @@
 import Core
 import SwiftUI
 
-/// Phase 0 screen: the rear camera full screen, a readout top left (frame rate for the
-/// ">= 55 fps for 5 min" criterion of PLAN.md §17, tuning revision and dev-server state),
-/// the menu top right (§1A.5), and the log overlay toggled by a three-finger tap (§1B.6).
+/// The one root of docs/GUI.md §6: camera (while a match runs), the persistent sky layer,
+/// then the content of the current screen. No `NavigationStack`.
 struct RootView: View {
-    @StateObject private var fps = FpsMeter()
-    @StateObject private var dev = DevServerClient()
-    @State private var showLog = false
-    @State private var showSettings = false
+    @StateObject private var model = AppModel()
 
     var body: some View {
         ZStack {
-            ARCameraView(onThreeFingerTap: { showLog.toggle() })
-                .ignoresSafeArea()
+            Theme.night.ignoresSafeArea()
 
-            if showLog {
-                LogOverlay()
+            if model.cameraActive {
+                ARCameraView(
+                    onThreeFingerTap: { model.showLog.toggle() },
+                    onFirstFrame: { model.cameraFrameArrived() })
+                    .ignoresSafeArea()
+            }
+
+            SkyLayer(model: model)
+
+            content
+                .opacity(model.contentOpacity)
+                .offset(y: model.contentOffset)
+                .allowsHitTesting(!model.inTransition)
+
+            if model.showLog {
+                LogOverlay().allowsHitTesting(false)
+            }
+            if model.debugOverlay {
+                DebugReadout(fps: model.fps, dev: model.dev)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .padding(8)
                     .allowsHitTesting(false)
             }
-
-            VStack {
-                HStack(alignment: .top) {
-                    readout
-                    Spacer()
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-                    }
-                    .accessibilityLabel("Menu")
-                }
-                Spacer()
-            }
-            .padding(8)
         }
         .statusBarHidden(true)
-        .sheet(isPresented: $showSettings) {
-            SettingsView(dev: dev)
-        }
-        .onAppear {
-            fps.start()
-            Log.event("app_started")
-        }
-        .onDisappear { fps.stop() }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .preferredColorScheme(.dark)
+        .onAppear { Log.event("app_started") }
     }
 
-    private var readout: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(String(format: "%.0f fps", fps.fps))
-            Text(String(format: "min %.0f", fps.minFps))
-            Text(String(format: "%.0f s", fps.elapsedS))
-            Text("tune r\(dev.tuning.revision)")
-            Text("dev \(dev.status)")
+    @ViewBuilder private var content: some View {
+        switch model.screen {
+        case .launch: LaunchView(model: model)
+        case .menu: MenuView(model: model)
+        case .settings: SettingsScreen(model: model, dev: model.dev)
+        case .practiceBriefing: PracticeBriefingView(model: model)
+        case .countdown: CountdownView(model: model)
+        case .match: MatchView(model: model)
+        case .pause: PauseView(model: model)
+        case .results, .lobby, .sync, .dead: EmptyView()   // pass 2 and Phase 3
         }
-        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+    }
+}
+
+/// Frame rate (for the ">= 55 fps" criteria), tuning revision and dev-server state.
+/// Shown while the Debug readout setting is on.
+private struct DebugReadout: View {
+    @ObservedObject var fps: FpsMeter
+    @ObservedObject var dev: DevServerClient
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(String(format: "%.0f fps  min %.0f  %.0f s", fps.fps, fps.minFps, fps.elapsedS))
+            Text("tune r\(dev.tuning.revision)  dev \(dev.status)")
+        }
+        .font(.system(size: 11, weight: .semibold, design: .monospaced))
         .foregroundStyle(.white)
-        .padding(8)
+        .padding(6)
         .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 
-/// The newest 30 log lines, refreshed twice a second.
+/// The newest 30 log lines, refreshed twice a second. Toggled by a three-finger tap on
+/// the camera view (PLAN.md §1B.6).
 private struct LogOverlay: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
@@ -80,6 +88,7 @@ private struct LogOverlay: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8)
+            .padding(.bottom, 44)
             .background(.black.opacity(0.45))
         }
     }

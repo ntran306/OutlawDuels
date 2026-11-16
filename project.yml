@@ -47,4 +47,8 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UIFileSharingEnabled: true
+        UIAppFonts:
+          - AlfaSlabOne-Regular.ttf
+          - BarlowCondensed-SemiBold.ttf
+          - BarlowCondensed-Medium.ttf
         LSSupportsOpeningDocumentsInPlace: true
