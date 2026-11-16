@@ -6,8 +6,8 @@ import UIKit
 /// Views read the published values; every change of screen goes through `send(_:)`.
 @MainActor
 final class AppModel: ObservableObject {
-    let dev = DevServerClient()
-    let audio = AudioPlayer()
+    let dev: DevServerClient
+    let audio: AudioPlayer
     let fps = FpsMeter()
     /// Hand tracking, trigger and magazine; also the people the camera sees.
     let gun: FingerGunModel
@@ -63,10 +63,15 @@ final class AppModel: ObservableObject {
 
     init() {
         let defaults = UserDefaults.standard
+        let devClient = DevServerClient()
+        let audioPlayer = AudioPlayer()
+        let useCount = defaults.object(forKey: Self.practiceCountKey) as? Bool ?? true
+        dev = devClient
+        audio = audioPlayer
+        gun = FingerGunModel(audio: audioPlayer, tuning: devClient.tuning)
         debugOverlay = defaults.object(forKey: Self.debugKey) as? Bool ?? true
-        practiceCount = defaults.object(forKey: Self.practiceCountKey) as? Bool ?? true
-        _ = flow.handle(.setUseCount(practiceCount))
-        gun = FingerGunModel(audio: audio, tuning: dev.tuning)
+        practiceCount = useCount
+        _ = flow.handle(.setUseCount(useCount))
 
         var fonts: [String: Double] = [:]
         for name in Theme.fontNames {
