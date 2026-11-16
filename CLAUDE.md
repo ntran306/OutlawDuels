@@ -17,7 +17,13 @@ multiplayer finger gun 1 v 1 (the main goal), then team play, killcam, bow, lead
   the Sideloadly install and the fps check on the iPhone 12 are still to do (U). Step 0d
   is written: `Tuning`, `TuningStore` and `Log` in `Core` (tested), `tools/devserver.py`
   (tested on the laptop), and the app's Dev server field, tuning poll, log upload and log
-  overlay (compiled in CI only, not run on a device (U)). Next is step 0e, the recorder.
+  overlay (compiled in CI only, not run on a device (U)).
+- GUI first (decided 2026-11-16): `docs/GUI.md` is the "High Noon" spec the user chose.
+  Pass 1 of its §10 is built and compiles in CI (commit `31a8986`): launch animation, menu,
+  settings, practice briefing, countdown, match HUD with fixed values, pause, `AppFlow` in
+  `Core`, sounds from `tools/make_audio.py`. None of it has been seen on a device (U); the
+  user judges looks and sounds there before pass 2. Steps 0e–0g (recorder, MediaPipe,
+  recordings) are parked until the GUI passes are done.
 - Laptop tools installed and checked 2026-11-14: Swift 6.4.2 (a throwaway package built and
   passed a Swift Testing test; edit-build-test took 7 s), GitHub CLI 2.104.0 signed in with
   `repo` and `workflow` scopes, Sideloadly with desktop iTunes and iCloud. `swift` and `gh`

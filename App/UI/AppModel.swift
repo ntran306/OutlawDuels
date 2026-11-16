@@ -9,6 +9,8 @@ final class AppModel: ObservableObject {
     let dev = DevServerClient()
     let audio = AudioPlayer()
     let fps = FpsMeter()
+    /// Hand tracking, trigger and magazine; also the people the camera sees.
+    let gun: FingerGunModel
 
     // What is on screen.
     @Published private(set) var screen: Screen = .launch
@@ -64,6 +66,7 @@ final class AppModel: ObservableObject {
         debugOverlay = defaults.object(forKey: Self.debugKey) as? Bool ?? true
         practiceCount = defaults.object(forKey: Self.practiceCountKey) as? Bool ?? true
         _ = flow.handle(.setUseCount(practiceCount))
+        gun = FingerGunModel(audio: audio, tuning: dev.tuning)
 
         var fonts: [String: Double] = [:]
         for name in Theme.fontNames {
@@ -123,6 +126,8 @@ final class AppModel: ObservableObject {
     // MARK: Camera start (GUI.md §6 dusk: first frame or 1500 ms)
 
     private func startCamera() {
+        gun.reset()
+        gun.refill()
         cameraActive = true
         Log.event("camera_start")
         Task { [weak self] in
@@ -218,6 +223,7 @@ final class AppModel: ObservableObject {
     private func setScreen(_ to: Screen) {
         previousScreen = screen
         screen = to
+        gun.weaponsLive = (to == .match)
     }
 
     private func applySky(for s: Screen) {
@@ -311,6 +317,7 @@ final class AppModel: ObservableObject {
         revealed = true
         await Self.pause(max(0, ms - 190))
         cameraActive = false
+        gun.reset()
     }
 
     /// Scrims and other content-only changes over the camera.

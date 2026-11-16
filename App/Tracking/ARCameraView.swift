@@ -1,4 +1,5 @@
 import ARKit
+import Core
 import RealityKit
 import SwiftUI
 
@@ -9,6 +10,8 @@ import SwiftUI
 struct ARCameraView: UIViewRepresentable {
     var onThreeFingerTap: () -> Void = {}
     var onFirstFrame: () -> Void = {}
+    /// Receives every camera frame for hand and body detection.
+    var pipeline: VisionPipeline?
 
     @MainActor
     final class Coordinator: NSObject {
@@ -52,8 +55,30 @@ struct ARCameraView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
+        // Lightest settings of PLAN.md §1B.5: nothing in the game uses lighting or reflections.
+        view.renderOptions = [
+            .disableMotionBlur, .disableDepthOfField, .disableHDR, .disableGroundingShadows,
+            .disableFaceMesh, .disablePersonOcclusion, .disableCameraGrain, .disableAREnvironmentLighting,
+        ]
         let config = ARWorldTrackingConfiguration()
         config.worldAlignment = .gravity
+        config.planeDetection = []
+        config.environmentTexturing = .none
+        config.isLightEstimationEnabled = false
+        if let format = ARWorldTrackingConfiguration.supportedVideoFormats.first(where: {
+            $0.imageResolution.width == 1280 && $0.imageResolution.height == 720 && $0.framesPerSecond == 60
+        }) {
+            config.videoFormat = format
+        }
+        Log.event("video_format", [
+            "w": Double(config.videoFormat.imageResolution.width),
+            "h": Double(config.videoFormat.imageResolution.height),
+            "fps": Double(config.videoFormat.framesPerSecond),
+        ])
+        if let pipeline {
+            view.session.delegate = pipeline
+            view.session.delegateQueue = pipeline.delegateQueue
+        }
         view.session.run(config)
 
         let tap = UITapGestureRecognizer(

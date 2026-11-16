@@ -11,10 +11,16 @@ struct RootView: View {
             Theme.night.ignoresSafeArea()
 
             if model.cameraActive {
-                ARCameraView(
-                    onThreeFingerTap: { model.showLog.toggle() },
-                    onFirstFrame: { model.cameraFrameArrived() })
-                    .ignoresSafeArea()
+                GeometryReader { geo in
+                    ARCameraView(
+                        onThreeFingerTap: { model.showLog.toggle() },
+                        onFirstFrame: { model.cameraFrameArrived() },
+                        pipeline: model.gun.pipeline)
+                        .onAppear {
+                            model.gun.pipeline.setViewAspect(Float(geo.size.width / max(1, geo.size.height)))
+                        }
+                }
+                .ignoresSafeArea()
             }
 
             SkyLayer(model: model)
@@ -47,7 +53,7 @@ struct RootView: View {
         case .settings: SettingsScreen(model: model, dev: model.dev)
         case .practiceBriefing: PracticeBriefingView(model: model)
         case .countdown: CountdownView(model: model)
-        case .match: MatchView(model: model)
+        case .match: MatchView(model: model, gun: model.gun)
         case .pause: PauseView(model: model)
         case .results, .lobby, .sync, .dead: EmptyView()   // pass 2 and Phase 3
         }
