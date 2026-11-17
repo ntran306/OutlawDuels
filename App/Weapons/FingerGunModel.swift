@@ -1,7 +1,7 @@
 import Core
 import SwiftUI
 
-/// The finger gun on the device: takes hand samples from `VisionPipeline`, smooths the
+/// The finger gun on the device: takes hand samples from a `HandTracker`, smooths the
 /// fingertip (PLAN.md §5.1), runs the trigger state machine (§7.3) and the magazine
 /// (§1A.3), and publishes what the HUD draws. Also holds the people the camera sees.
 @MainActor
@@ -30,7 +30,9 @@ final class FingerGunModel: ObservableObject {
     let magazineSize: Int
 
     private let audio: AudioPlayer
-    private var trigger = GunTrigger()
+    private let currentTuning: @MainActor () -> Tuning
+    private var appliedTuning: Tuning
+    private var trigger: GunTrigger
     private var magazine: Magazine
     private var filter: KalmanCv2D
     private var lastHandTime: Double?
@@ -38,8 +40,14 @@ final class FingerGunModel: ObservableObject {
     private var rateWindowStart = 0.0
     private var rateCount = 0
 
-    init(audio: AudioPlayer, tuning: Tuning) {
+    /// `tuning` is read on every hand result, so a change in `tools/tuning.json` takes
+    /// effect without a rebuild.
+    init(audio: AudioPlayer, tuning currentTuning: @escaping @MainActor () -> Tuning) {
         self.audio = audio
+        self.currentTuning = currentTuning
+        let tuning = currentTuning()
+        appliedTuning = tuning
+        trigger = GunTrigger(config: GunTriggerConfig(tuning: tuning))
         magazineSize = tuning.gunMagSize
         magazine = Magazine(size: tuning.gunMagSize)
         rounds = magazine.rounds
@@ -47,13 +55,13 @@ final class FingerGunModel: ObservableObject {
             sigmaZ: tuning.fingertipSigmaZ, sigmaA: tuning.fingertipSigmaA, v0: 1,
             gateSigma: tuning.gateSigma, gateMaxSkips: tuning.gateMaxSkips)
 
-        pipeline.setHandlers(
-            onHand: { [weak self] sample, time in
-                Task { @MainActor in self?.handleHand(sample, time: time) }
-            },
-            onBodies: { [weak self] sightings, time in
-                Task { @MainActor in self?.handleBodies(sightings, time: time) }
-            })
+        let hands: any HandTracker = pipeline
+        hands.setHandHandler { [weak self] sample, time in
+            Task { @MainActor in self?.handleHand(sample, time: time) }
+        }
+        pipeline.setBodyHandler { [weak self] sightings, time in
+            Task { @MainActor in self?.handleBodies(sightings, time: time) }
+        }
     }
 
     /// Called when the camera stops: forget the hand, keep the magazine.
@@ -64,7 +72,7 @@ final class FingerGunModel: ObservableObject {
         triggerTravel = 0
         measures = nil
         sightings = []
-        trigger = GunTrigger()
+        trigger = GunTrigger(config: GunTriggerConfig(tuning: appliedTuning))
         filter.reset()
         lastHandTime = nil
     }
@@ -74,7 +82,18 @@ final class FingerGunModel: ObservableObject {
         rounds = magazine.rounds
     }
 
+    private func applyTuningIfChanged() {
+        let tuning = currentTuning()
+        guard tuning != appliedTuning else { return }
+        appliedTuning = tuning
+        trigger.config = GunTriggerConfig(tuning: tuning)
+        filter.setNoise(
+            sigmaZ: tuning.fingertipSigmaZ, sigmaA: tuning.fingertipSigmaA,
+            gateSigma: tuning.gateSigma, gateMaxSkips: tuning.gateMaxSkips)
+    }
+
     private func handleHand(_ sample: HandPoseSample?, time: Double) {
+        applyTuningIfChanged()
         // Results can arrive out of order across the main-actor hop; drop stale ones.
         if let last = lastHandTime, sample != nil, time <= last { return }
 

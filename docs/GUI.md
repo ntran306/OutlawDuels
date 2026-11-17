@@ -18,6 +18,7 @@ https://claude.ai/artifact/85X8C1uaic5eJAaSwTbn94 (look C).
 | Silent switch | Obeyed everywhere; haptics still fire |
 | Logo | Black finger-gun silhouette on the amber sun disc; OUTLAW / DUELS beneath |
 | Scope now | Launch, main menu, settings, Practice briefing, match HUD (fake values), countdown, results. Lobby, sync, death/respawn specified here, built in Phase 3 |
+| Terms of Use | Added 2026-11-16 (`PLAN.md` §1B.10): a first-launch `terms` screen between launch and menu, also readable from Settings. Built in pass 2 with the camera-refused screen and the safety card |
 | Fonts | Alfa Slab One (titles) + Barlow Condensed (everything else), bundled |
 | Colour-blind | Setting "Shapes on markers", off by default |
 | Match start | "3, 2, 1, DRAW" only if the players vote for a count; with no count the match is open as soon as everyone is ready and starts at the first shot (§7.1) |
@@ -114,6 +115,9 @@ Layout values assume 390 x 844 pt (iPhone 12); positions are fractions so other 
 | `sync` | Camera | none | Caption "SCAN THE HOST'S SCREEN"; 240 pt square bracket frame `cream` 3 pt; progress ring `sun` | Phase 3 |
 | `dead` | Camera under `night` 55 % scrim | none | Title "DOWN"; caption "BACK IN n" counting `RESPAWN_WAIT_S`; killer's colour disc 28 pt | Phase 3 |
 | `pause` | Camera under `night` 70 % scrim | none | Resume (primary), Settings (secondary), Leave (tertiary, `danger` text) | Now |
+| `terms` | Sky, no skyline | (0.86, 0.08, 56) | Title "BEFORE YOU PLAY"; the text of `App/Resources/Terms/terms_v1.txt` in `body` style, `cream`, in a scroll view on a `night` 50 % panel rounded 16, from y 0.20 to 96 pt above the bottom safe edge, inner padding 16, section headings in `caption` style; "I AGREE" (primary) at bottom margin 24, at 40 % opacity and not tappable until the text has been scrolled to its end. Opened from Settings: the same screen with Back (tertiary, top left) and no Agree button. `PLAN.md` §1B.10 | Pass 2 |
+| `cameraDenied` | Sky + skyline | (0.50, 0.14, 96) | Title "CAMERA NEEDED"; `body` line "Outlaw Duels sees the room and your hand through the camera. Allow it in Settings to play."; Open Settings (primary, opens `UIApplication.openSettingsURLString`); Back (tertiary). Shown in place of the dusk when `AVCaptureDevice.authorizationStatus(for: .video)` is `.denied` or `.restricted` (`PLAN.md` §1B.9) | Pass 2 |
+| `safety` | Camera under `night` 70 % scrim | none | Title "CLEAR THE SPACE"; `body` line "Watch your step, the furniture and the people around you."; Ready (primary). Shown once per match before the count or standoff (`PLAN.md` §1B.9) | Pass 2 |
 
 ## 5. Match HUD (replaces nothing in `PLAN.md` §1A.5; fills in its drawing)
 
@@ -195,7 +199,13 @@ public func sunPose(for s: Screen) -> SunPose?        // nil on camera screens
 
 | From | Event | To | Transition | Sound |
 |---|---|---|---|---|
-| launch | `launchFinished` (2000 ms or tap) | menu | sunSlide | `ui_whoosh` |
+| launch | `launchFinished` (2000 ms or tap), terms accepted | menu | sunSlide | `ui_whoosh` |
+| launch | `launchFinished`, terms not accepted (`termsAcceptedVersion` < `TERMS_VERSION`) | terms | sunSlide | `ui_whoosh` |
+| terms | `tapAgree` (first launch) | menu | sunSlide | `ui_confirm` |
+| settings | `tapTerms` | terms | sunSlide | `ui_tap`, `ui_whoosh` |
+| terms | `tapBack` (opened from Settings) | settings | sunSlideBack | `ui_back` |
+| practiceBriefing | `tapStart`, camera refused | cameraDenied | sunSlide | `ui_tap` |
+| cameraDenied | `tapBack` | practiceBriefing | sunSlideBack | `ui_back` |
 | menu | `tapPractice` | practiceBriefing | sunSlide | `ui_tap`, `ui_whoosh` |
 | menu | `tapSettings` | settings | sunSlide | same |
 | menu | `tapHost` / `tapJoin` (Phase 3) | lobby | sunSlide | same |
@@ -222,6 +232,13 @@ public func sunPose(for s: Screen) -> SunPose?        // nil on camera screens
 
 Events arriving while a transition runs are queued (at most 1, newest wins); taps on
 buttons are disabled during a transition.
+
+Pass 2 additions to the shapes above: `Screen` gains `terms`, `cameraDenied` and `safety`
+(appended, so existing raw values keep their numbers); `FlowEvent` gains
+`setTermsAccepted(Bool)`, `tapAgree`, `tapTerms`, `cameraRefused` and `tapReady`; `AppFlow`
+gains `termsAccepted: Bool` and `termsReturn: Screen` (`.menu` or `.settings`). The `safety`
+card sits between `cameraReady` and the count or standoff: `practiceBriefing` -> (dusk) ->
+`safety` -> `tapReady` -> `countdown` or `match`, by scrimOut.
 
 ### 7.1 Match start: voted count or first shot (decided 2026-11-16)
 
@@ -293,7 +310,7 @@ are preloaded into `AVAudioPCMBuffer`s at launch; `shot` has 4 player nodes for 
 | Pass | Contents | Checked on the phone |
 |---|---|---|
 | 1 | `tools/make_audio.py` and its WAVs (listen on the laptop first); fonts bundled; `Theme`; sky, sun, finger gun, skyline; `launch` and `menu` with the sun-slide between them; `AppFlow` in `Core` with tests; `uiTransitionMs` etc. in `Tuning`; `practiceBriefing` with the dusk into the existing camera view; HUD drawn with fake values (HP 72, 4 of 6 rounds) | Fonts load (not the system fallback), launch timing, sun slide smoothness, dusk with a live camera, HUD legibility in a bright and a dim room, fps |
-| 2 | Settings restyle, pause, countdown, results, HUD micro-animations driven by a debug button, ambience loop and all UI sounds, Reduce Motion variants | Remaining criteria of §11 |
+| 2 | Terms of Use, camera-refused screen and safety card (first, because a refused camera currently leaves a black picture); settings restyle, pause, countdown, results, HUD micro-animations driven by a debug button, ambience loop and all UI sounds, Reduce Motion variants | Remaining criteria of §11 |
 | 3 (Phase 3) | Lobby, sync, dead, marker glyphs | With multiplayer |
 
 Pass 1 goes first because it holds every unknown: custom font registration through
@@ -303,6 +320,8 @@ XcodeGen, hand-drawn shapes that have never been seen rendered, a spring animati
 ## 11. Acceptance criteria
 
 - `swift test --package-path Core`: every row of the §7 table has a test; an event not in the table returns `nil`.
+- Terms of Use: on a fresh install the menu cannot be reached without tapping "I AGREE"; the button is not tappable until the text is scrolled to its end; after accepting, 10 of 10 relaunches go straight to the menu; raising `TERMS_VERSION` by 1 shows the screen again on the next launch; the text is readable from Settings at any time.
+- Camera refused: with camera access off in Settings, Start shows `cameraDenied` within 0.6 s and never a black camera picture; Open Settings opens the app's page in Settings.
 - The log line `fonts_loaded` reports all 3 PostScript names present on the iPhone 12.
 - Launch: from first frame to the menu fully drawn is 2.45 s ± 0.1 s untapped (2000 + 450), measured from `Log` events `launch_start` and `menu_shown`; a tap at 0.5 s gives `menu_shown` within 0.6 s of the tap.
 - Menu-to-menu transition: `uiTransitionMs` ± 50 ms between `transition_start` and `transition_end`; frame rate >= 58 fps during it (no camera running).

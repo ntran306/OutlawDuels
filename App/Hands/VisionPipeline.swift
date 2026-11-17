@@ -25,8 +25,7 @@ private struct PixelBufferBox: @unchecked Sendable {
 ///
 /// It is the `ARSession` delegate; frames arrive on `delegateQueue`. Results are handed
 /// to the two callbacks on worker queues, so the callbacks must hop to the main actor.
-final class VisionPipeline: NSObject, ARSessionDelegate, @unchecked Sendable {
-    typealias HandCallback = @Sendable (_ sample: HandPoseSample?, _ frameTimeSec: Double) -> Void
+final class VisionPipeline: NSObject, ARSessionDelegate, HandTracker, @unchecked Sendable {
     typealias BodyCallback = @Sendable (_ sightings: [PlayerSighting], _ frameTimeSec: Double) -> Void
 
     let delegateQueue = DispatchQueue(label: "outlawduels.arframes", qos: .userInteractive)
@@ -55,7 +54,7 @@ final class VisionPipeline: NSObject, ARSessionDelegate, @unchecked Sendable {
     private var handBusy = false
     private var bodyBusy = false
     private var lastBodyTime = 0.0
-    private var onHand: HandCallback?
+    private var onHand: HandResultHandler?
     private var onBodies: BodyCallback?
 
     // Each request is used only on its own serial queue.
@@ -66,10 +65,16 @@ final class VisionPipeline: NSObject, ARSessionDelegate, @unchecked Sendable {
     }()
     private let bodyRequest = VNDetectHumanBodyPoseRequest()
 
-    func setHandlers(onHand: @escaping HandCallback, onBodies: @escaping BodyCallback) {
+    /// `HandTracker`: where hand results go.
+    func setHandHandler(_ handler: HandResultHandler?) {
         lock.lock()
-        self.onHand = onHand
-        self.onBodies = onBodies
+        onHand = handler
+        lock.unlock()
+    }
+
+    func setBodyHandler(_ handler: BodyCallback?) {
+        lock.lock()
+        onBodies = handler
         lock.unlock()
     }
 

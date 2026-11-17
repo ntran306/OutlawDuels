@@ -68,7 +68,7 @@ final class AppModel: ObservableObject {
         let useCount = defaults.object(forKey: Self.practiceCountKey) as? Bool ?? true
         dev = devClient
         audio = audioPlayer
-        gun = FingerGunModel(audio: audioPlayer, tuning: devClient.tuning)
+        gun = FingerGunModel(audio: audioPlayer, tuning: { devClient.tuning })
         debugOverlay = defaults.object(forKey: Self.debugKey) as? Bool ?? true
         practiceCount = useCount
         _ = flow.handle(.setUseCount(useCount))

@@ -74,6 +74,25 @@ public struct GunTriggerConfig: Sendable, Equatable {
     public var aimLookbackMaxSec = 0.250
 
     public init() {}
+
+    /// The live-tunable values (`Tuning` keys `gun...`).
+    public init(tuning t: Tuning) {
+        triggerPull = Float(t.gunTriggerPull)
+        triggerReset = Float(t.gunTriggerReset)
+        triggerGlitch = Float(t.gunTriggerGlitch)
+        straightOn = Float(t.gunStraightOn)
+        straightOff = Float(t.gunStraightOff)
+        curlOn = Float(t.gunCurlOn)
+        curlOff = Float(t.gunCurlOff)
+        armFrames = max(1, t.gunArmFrames)
+        pullFrames = max(1, t.gunPullFrames)
+        recockFrames = max(1, t.gunRecockFrames)
+        minRefireSec = t.gunMinRefireMs / 1000
+        shapeLostFrames = max(1, t.gunShapeLostFrames)
+        handLostSec = t.gunHandLostMs / 1000
+        aimHistory = max(1, t.gunAimHistory)
+        aimLookbackMaxSec = t.gunAimLookbackMaxMs / 1000
+    }
 }
 
 public enum GunState: UInt8, Sendable, Equatable { case none, cocked, fired }

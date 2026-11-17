@@ -39,6 +39,24 @@ public struct Tuning: Codable, Sendable, Equatable {
     public var drawFullM: Double = 0.35
     public var minFirePower: Double = 0.10
 
+    // §7.3 trigger state machine. Ported 3D starting values; provisional for the 2D Vision
+    // tracker (§7.6). Frame counts assume a 30 Hz tracker.
+    public var gunTriggerPull: Double = 0.30
+    public var gunTriggerReset: Double = 0.42
+    public var gunTriggerGlitch: Double = 2.0
+    public var gunStraightOn: Double = 0.85
+    public var gunStraightOff: Double = 0.72
+    public var gunCurlOn: Double = 1.40
+    public var gunCurlOff: Double = 1.65
+    public var gunArmFrames: Int = 3
+    public var gunPullFrames: Int = 2
+    public var gunRecockFrames: Int = 2
+    public var gunMinRefireMs: Double = 150
+    public var gunShapeLostFrames: Int = 6
+    public var gunHandLostMs: Double = 300
+    public var gunAimHistory: Int = 15
+    public var gunAimLookbackMaxMs: Double = 250
+
     // §1B.2 aim filter in room space
     public var aimSigmaZRad: Double = 0.004
     public var aimSigmaARadS2: Double = 12

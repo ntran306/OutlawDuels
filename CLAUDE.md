@@ -24,6 +24,20 @@ multiplayer finger gun 1 v 1 (the main goal), then team play, killcam, bow, lead
   `Core`, sounds from `tools/make_audio.py`. None of it has been seen on a device (U); the
   user judges looks and sounds there before pass 2. Steps 0e–0g (recorder, MediaPipe,
   recordings) are parked until the GUI passes are done.
+- Hand and player detection, first version (2026-11-16, commit `b914225`, compiles in CI,
+  not run on a device (U)): `App/Hands/VisionPipeline.swift` runs Apple Vision hand pose
+  (30 Hz) and body pose (10 Hz) on AR frames; `App/Weapons/FingerGunModel.swift` feeds
+  `Core` `KalmanCv2D`, `GunTrigger` and `Magazine`. Apple Vision gives 2D hand points only,
+  so the §7.2 shape measures are computed in 2D and the §7.3 thresholds (tuned for 3D
+  MediaPipe landmarks) are expected to need retuning from the on-screen `trig/str/curl`
+  readout. Player detection is §1B.7 step 1 only (a marker above each person's neck);
+  steps 2–8 need multiplayer poses. No hit test yet: shots hit nothing.
+- Plan review 2026-11-16: `PLAN.md` §17 "Progress and order" is the current order. Next is
+  the user's device test of the stacked builds, then the recorder (step 0e) on the Vision
+  tracker; MediaPipe (0f) only if Vision fails the Phase 1 detection criteria. Gun
+  thresholds are live-tunable (`Tuning` keys `gun...`). `HandTracker` is a pushed-handler
+  protocol in `Core`. A Terms of Use screen is planned (`PLAN.md` §1B.10, `docs/GUI.md`
+  `terms` screen, GUI pass 2); its wording is a draft with no legal review (U).
 - Laptop tools installed and checked 2026-11-14: Swift 6.4.2 (a throwaway package built and
   passed a Swift Testing test; edit-build-test took 7 s), GitHub CLI 2.104.0 signed in with
   `repo` and `workflow` scopes, Sideloadly with desktop iTunes and iCloud. `swift` and `gh`

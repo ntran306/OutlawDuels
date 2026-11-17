@@ -17,6 +17,18 @@ import Testing
         #expect(t.devLogUploadS == 5.0)
     }
 
+    @Test func gunConfigFromTuningMatchesThePortedDefaults() {
+        #expect(GunTriggerConfig(tuning: Tuning()) == GunTriggerConfig())
+        var t = Tuning()
+        t.gunTriggerPull = 0.25
+        t.gunHandLostMs = 400
+        t.gunArmFrames = 0
+        let config = GunTriggerConfig(tuning: t)
+        #expect(config.triggerPull == 0.25)
+        #expect(config.handLostSec == 0.4)
+        #expect(config.armFrames == 1)
+    }
+
     @Test func emptyObjectKeepsEveryDefault() {
         var store = TuningStore()
         let result = store.apply(json: data("{}"))

@@ -114,6 +114,18 @@ public struct KalmanCv2D: Sendable {
         y.reset()
     }
 
+    /// Changes the noise settings without losing the current state (live tuning).
+    public mutating func setNoise(sigmaZ: Double, sigmaA: Double, gateSigma: Double, gateMaxSkips: Int) {
+        x.sigmaZ = sigmaZ
+        x.sigmaA = sigmaA
+        x.gateSigma = gateSigma
+        x.gateMaxSkips = gateMaxSkips
+        y.sigmaZ = sigmaZ
+        y.sigmaA = sigmaA
+        y.gateSigma = gateSigma
+        y.gateMaxSkips = gateMaxSkips
+    }
+
     public mutating func update(_ z: Vec2, at t: Double) -> Vec2 {
         Vec2(Float(x.update(Double(z.x), at: t)), Float(y.update(Double(z.y), at: t)))
     }

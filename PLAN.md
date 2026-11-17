@@ -319,7 +319,7 @@ too coarse to trust for that.
 | Muzzle flash | Unlit additive quad, 0.06 m, at the muzzle, 0.05 s. |
 | Surface impact | Unlit ring facing along `impactNormal`, growing 0.05 m to 0.12 m over 0.15 s, then gone. Pooled. |
 | Target hit | Screen-space hit marker at the reticle for 0.12 s; sound `hit`, or `bull` for the centre ring (§13.1). |
-| Miss | Sound `miss` when `kind == .none`. |
+| Miss | Sound `ricochet` when `kind == .none` (`docs/GUI.md` §8; was `miss`). |
 | Shot | Sound `shot`; haptic of §1A.6; the reticle kicks up 0.01 viewport and recovers in 0.10 s (T). The camera picture does not move. |
 
 Budget (T): at most 30 effect entities alive, unlit materials only, no shadows.
@@ -482,7 +482,7 @@ phones as can be borrowed.
 | Re-sync | `DevicePoseMsg.flags` bits 1–3 carry the sender's alignment epoch (0–7, +1 on each accepted sync). When a receiver sees it change, it resets that player's position filter (§5.1) and drift offset (§1B.7). |
 | Screen lock | `UIApplication.shared.isIdleTimerDisabled = true` from LOBBY to END. |
 | Interruptions | `sessionWasInterrupted` (call, control centre) puts the player in UNTRACKED at once, without the 1.0 s wait. |
-| Permissions | Camera or Local Network refused: a blocking screen with a button to Settings. |
+| Permissions | Camera or Local Network refused: a blocking screen with a button to Settings. Not built yet (2026-11-16): today a refused camera gives a black picture after the dusk; it is in GUI pass 2 because the Practice Range needs it too. |
 | Cannot reach host | No TCP connection within 5.0 s of scanning: a message suggesting the same Wi-Fi or the host's hotspot (§1A.8). |
 | Host loss | Unchanged: the match ends (§10.4). With 10 players this is the main weak point; the host should be the phone with the most battery. Host migration stays in §18. |
 | Safety | Before COUNTDOWN each player taps through a "clear the space, watch your step" card. |
@@ -529,6 +529,38 @@ public struct RosterEntry: Sendable {
 }
 public struct RosterMsg: Sendable { public var players: [RosterEntry] }
 ```
+
+### 1B.10 Terms of Use screen (decided 2026-11-16)
+
+A first-launch screen the player must accept before the menu, so the rules of use, the
+safety advice and the privacy facts are on record. It is separate from the per-match safety
+card of §1B.9, which stays. Drawing, flow and acceptance criteria are in `docs/GUI.md` §4,
+§7 and §11 (`terms` screen).
+
+| Item | Rule |
+|---|---|
+| When shown | After the launch animation, before the menu, whenever `UserDefaults` `termsAcceptedVersion` < `TERMS_VERSION`. Also readable at any time from Settings > Terms of Use (no Agree button there). |
+| `TERMS_VERSION` | `1` (`Int`, in `Core/Sources/Core/UI/Terms.swift`). Raised on any change to the text; raising it shows the screen again on the next launch. |
+| Accepting | "I AGREE" stores `termsAcceptedVersion = TERMS_VERSION` and `termsAcceptedAt` (ISO 8601 date) in `UserDefaults`, then goes to the menu. There is no decline button: the app has nothing usable behind the screen until it is accepted. |
+| Text source | `App/Resources/Terms/terms_v1.txt`, plain text, bundled; the screen shows it in a scroll view. The same file is committed so a change is visible in review. |
+| Agree enabled | Only after the text has been scrolled to its end (T), so it cannot be accepted unread by a single tap. |
+| Nothing leaves the phone | Acceptance is stored only on the device. No account, no server. |
+
+Sections of `terms_v1.txt` (draft wording, at most 350 words in total (T)):
+
+| # | Section | Content |
+|---|---|---|
+| 1 | What the game is | A game of pretend duels with finger guns between people who have all chosen to play. |
+| 2 | Play safely | Clear the space; watch your step, furniture, stairs, pets and other people; do not play near roads, water or heights; stop if you feel unwell. You play at your own risk. |
+| 3 | Play considerately | Play only with people who agreed to play. Do not aim at strangers. Do not play where a pointing gesture could alarm people or be mistaken for a threat. |
+| 4 | Camera and privacy | Camera pictures are processed on the phone and are not stored or uploaded. In a match, the phone's position and shots are sent to the other players' phones over the local network only. Killcam clips (Phase 5) exist in memory, travel only between the players' phones and are dropped after playback. Online leaderboards (Phase 7) will send a display name and score, and the text is revised before that ships. |
+| 5 | Age | For players 13 and over (T); younger players only with an adult. |
+| 6 | No warranty | The app is provided as is, without warranty; to the extent the law allows, the makers are not liable for injury, damage or loss from its use. |
+| 7 | Changes | The terms can change; a changed version is shown again and must be accepted again. |
+
+(U) The wording is a draft written without legal review. It must be reviewed by someone
+qualified before any release outside the user's own testers (Phase 7), and the App Store
+needs a privacy policy URL and privacy labels in addition to this screen.
 
 ---
 
@@ -595,14 +627,14 @@ run without a device must: all of `Core` is plain Swift with tests run on Window
 D:\Projects\OutlawDuels\
   PLAN.md  CLAUDE.md
   .gitignore                      Xcode, Swift, Pods, build/, *.p8, *.mobileprovision
-  .gitattributes                  LFS for *.png *.wav *.usdz *.task
+  .gitattributes                  LFS for *.png *.usdz *.task (not yet created). WAVs are committed directly: 3.2 MB in total
   .github/workflows/ios.yml       the two jobs of §2.1
   project.yml                     XcodeGen spec: one iOS app target, deployment target 17.0, MediaPipe package
   tools/install.ps1               download the latest .ipa, print the Sideloadly step
   tools/devserver.py              laptop endpoint for tuning, logs and recordings (§1B.6)
   tools/tuning.json               overrides for (T) constants, served to the phone
   tools/fakeclients.py            fakes up to 9 network clients from the laptop (§1B.8)
-  tools/export_fletchflow_audio.py   one-off WAV export, run with FletchFlow's venv (§14)
+  tools/make_audio.py             synthesises every sound into App/Resources/Audio (docs/GUI.md §8); replaces the FletchFlow export of §14.1
   Core/                           Swift package, no dependencies
     Package.swift                 swift-tools-version 6.0; library product "Core"
     Sources/Core/
@@ -948,6 +980,11 @@ Apple Vision gives 2D joints only. `straight` and `curl` become 2D ratios and `t
 becomes `dist2D(thumb tip, index segment) / dist2D(wrist, middle MCP)`. None of the §7.3
 thresholds carry over; they are re-derived from Practice Range telemetry before M3.
 
+**State 2026-11-16:** this is what is built. `App/Hands/VisionPipeline.swift` fills
+`HandPoseSample.worldM` with the 2D points in isotropic screen units, so `GunGesture`
+computes exactly these 2D ratios. The §7.3 thresholds are in `Tuning` (keys `gun...`) with
+the 3D starting values and are provisional until re-derived from recordings (§17).
+
 ---
 
 ## 8. Hit test (shooter side)
@@ -1143,7 +1180,7 @@ permission prompt. No Bonjour and no multicast entitlement: joining is by the QR
 | `HitMsg` | host -> all | TCP | per hit | 17 |
 | `ShotFxMsg` (tracer for others) | host -> all | UDP | per shot | 32 |
 | `LifeStateMsg` | host -> all | TCP | per change | 12 |
-| `MatchStateMsg` | host -> all | TCP | per change + every 1 s | 24 |
+| `MatchStateMsg` | host -> all | TCP | per change + every 1 s | 25 (24 + 1 flags byte; bit 0 = `useCount`, §10.2) |
 | `SyncPoseMsg` (host pose during §6) | host -> syncing client | UDP, sequenced | 20 Hz | 28 |
 | `ClockPingMsg` / `ClockPongMsg` | client -> host / host -> client | UDP | 8 on join, then 1 every 5 s | 9 / 16 |
 | `KillcamClipHeader` + `KillcamChunkMsg` | via host | TCP | on kill | 22 header; chunk = 4 + <= 32,000 |
@@ -1162,12 +1199,20 @@ Load at 10 players: the host sends 9 x (284 + 31 framing and UDP/IPv4 headers) x
 | From | To | Condition |
 |---|---|---|
 | MENU | LOBBY | Host taps Host; client scans the join QR and connects |
-| LOBBY | SYNC | Host taps Start with >= 2 players and >= 1 per team (Practice Range: skip to COUNTDOWN alone) |
-| SYNC | COUNTDOWN | Every connected player has an accepted `FrameAlignment` (§6). A player unsynced after 60 s (T) is moved to spectators. |
-| COUNTDOWN | LIVE | 2.4 s elapsed; "3", "2", "1" at 0 / 0.8 / 1.6 s (P, `GUN_COUNTDOWN_S`) |
+| LOBBY | SYNC | Host taps Start with >= 2 players and >= 1 per team (Practice Range: skip to COUNTDOWN or STANDOFF alone) |
+| SYNC | COUNTDOWN | Every connected player has an accepted `FrameAlignment` (§6) AND `useCount` (below). A player unsynced after 60 s (T) is moved to spectators. |
+| SYNC | STANDOFF | Every connected player has an accepted `FrameAlignment` AND NOT `useCount` |
+| COUNTDOWN | LIVE | 2.4 s elapsed; "3", "2", "1" at 0 / 0.8 / 1.6 s (P, `GUN_COUNTDOWN_S`); a thumb drop before 2.4 s fires nothing |
+| STANDOFF | LIVE | The first accepted shot from any player; that shot counts and the match clock starts at its timestamp |
 | LIVE | END | A team reaches `TDM_KILL_TARGET` = 5 x team size (T; 10 at 2 v 2, 25 at 5 v 5), OR `TDM_TIME_LIMIT_S` 300 (T) elapses, OR a team has 0 connected players for 15 s |
 | END | LOBBY | Final killcam (§11) finishes and 8 s (T) of scoreboard, or host taps Continue |
 | any | MENU | Host lost (§10.4) |
+
+`useCount` (decided 2026-11-16, `docs/GUI.md` §7.1): each player has one lobby toggle,
+default off; `useCount` = votes for a count > half of the connected players (T; a tie means
+no count). The host computes it when Start is tapped and sends it in `MatchStateMsg`. In
+STANDOFF weapons are live for everyone with no signal. In the Practice Range the briefing
+toggle is the whole vote.
 
 Killcam and respawn are per-player states (§10.3); the match stays LIVE for everyone else.
 
@@ -1252,7 +1297,7 @@ import Foundation
 public enum WeaponKind: UInt8, Sendable { case fingerGun = 0, bow = 1 }
 public enum Team: UInt8, Sendable { case none = 0, red = 1, blue = 2 }
 public enum LifeState: UInt8, Sendable { case alive, deadKillcam, respawning, protected, untracked, disconnected }
-public enum MatchPhase: UInt8, Sendable { case menu, lobby, sync, countdown, live, end }
+public enum MatchPhase: UInt8, Sendable { case menu, lobby, sync, countdown, live, end, standoff }   // standoff added 2026-11-16 (§10.2); appended so the other raw values keep their numbers
 public enum TrackingQuality: UInt8, Sendable { case none = 0, limited = 1, normal = 2 }
 public enum CameraFacing: UInt8, Sendable { case rear, front }
 
@@ -1356,12 +1401,13 @@ public struct LeaderboardEntry: Codable, Sendable {
 public struct ClockPingMsg: Sendable { public var playerId: UInt8; public var t0: Double }          // client uptime seconds
 public struct ClockPongMsg: Sendable { public var t0: Double; public var serverTimeSec: Double }
 
+// Changed 2026-11-16 from a polled `takeLatest()` to a pushed handler: a frame with no hand
+// must be reported too (the reload and hand-lost timers of §1A.3 and §7.3 count them), and
+// a push needs no second ticker beside the camera. Core/Sources/Core/Hands/HandTracker.swift.
+public typealias HandResultHandler = @Sendable (_ sample: HandPoseSample?, _ frameTimeSec: Double) -> Void
 public protocol HandTracker: AnyObject {
-    var isRunning: Bool { get }
-    var resultRateHz: Float { get }
-    func startTracking(facing: CameraFacing)       // .rear for the gun, .front for the bow
-    func stopTracking()
-    func takeLatest() -> HandPoseSample?           // nil if no new sample since the last call
+    // Called once per processed camera frame, on any thread; sample is nil when no hand was seen.
+    func setHandHandler(_ handler: HandResultHandler?)
 }
 
 public protocol Weapon: AnyObject {
@@ -1423,7 +1469,7 @@ come from the hosting phone and are forgeable; boards are for friends, not a ran
 | Item | Value | Source |
 |---|---|---|
 | Round length | 60 s | (P) `GUN_ROUND_SECONDS` |
-| Countdown | 2.4 s | (P) `GUN_COUNTDOWN_S` |
+| Countdown | 2.4 s, only when the briefing's "3-2-1 count" toggle is on (default on); with it off the round starts at the first shot (`docs/GUI.md` §7.1) | (P) `GUN_COUNTDOWN_S` |
 | Targets | Discs of radius 0.25 m (T), 3 at a time | FletchFlow: 0.9 m at 9 / 14 / 20 m, too large for a room |
 | Target distances | 3 / 5 / 8 m from where the player stood at round start | (T) |
 | Target height | 1.2–1.8 m above the detected floor | (T) |
@@ -1459,6 +1505,11 @@ to `Application Support/OutlawDuels/telemetry/*.jsonl` for retuning the (U) thre
 | Output of `tools/export_fletchflow_audio.py` | `App\Resources\Audio\Sfx\{shot,hit,bull,miss,cock,crack,shatter,tier,boot,over}.wav` | FletchFlow synthesises these at runtime (`gun/audio.py` `synth_sfx(seed=7)`); the export script does not exist yet and is an M1 task. 44,100 Hz, 16-bit. Played with `AVAudioEngine`. |
 | same script | `App\Resources\Audio\Music\layer_{0..4}.wav` | `synth_music(seed=11)`: five phase-locked loops at 100 BPM. Layer volumes 0.35 / 0.45 / 0.30 / 0.28 / 0.30 (`GUN_MUSIC_LAYER_VOL`). |
 
+**Superseded 2026-11-16:** the two audio rows above are not used. Every sound is
+synthesised by `tools/make_audio.py` to the list in `docs/GUI.md` §8, and
+`tools/export_fletchflow_audio.py` will not be written. The volumes below are FletchFlow's
+and are kept only for reference; the playback gains in use are the "Vol" column of GUI.md §8.
+
 SFX volumes to carry (`GUN_SFX_VOL`): shot 0.55, hit 0.6, bull 0.8, miss 0.25, cock 0.35,
 crack 0.7, shatter 0.8, tier 0.6, boot 0.6, over 0.6.
 
@@ -1492,7 +1543,7 @@ neon background and effects.
 | 5 | Bow without a see-through view (§9.4) | Arrows through walls is **decided** (§1A.4); the scope view is decided after F4 | Drop the selfie-camera draw and use a different draw gesture |
 | 9 | Self view in gun mode (§1A.5) | Drawn face from the face anchor, after F5 | Hide the corner in gun mode |
 | 6 | Leaderboard backend | Supabase free tier over `URLSession` (works with free signing) | Game Center: needs the Apple Developer Program |
-| 7 | Hand tracker | Chosen by measurement in Phase 1 (§1B.1 #9): MediaPipe Tasks (3D points, Swift package) | Apple Vision `VNDetectHumanHandPoseRequest` (2D, no dependency, thresholds re-derived) |
+| 7 | Hand tracker | **Working tracker since 2026-11-16:** Apple Vision `VNDetectHumanHandPoseRequest` (2D, no dependency), thresholds provisional (§7.6). Still chosen by measurement (§1B.1 #9), in the order of §17: Vision is measured first | MediaPipe Tasks (3D points, Swift package (U)), added only if Vision fails the Phase 1 detection criteria |
 | 8 | Respawn rule | Timer only (§10.3) | Walk back to a team base marker |
 
 ---
@@ -1501,13 +1552,13 @@ neon background and effects.
 
 | Item | Section | Verified by |
 |---|---|---|
-| Exact Swift, XcodeGen and MediaPipe versions; the MediaPipe Swift package's product name. (The `macos-26` label and Xcode 26.6 were confirmed from the runner release notes on 2026-11-13.) | §2 | Day 1 of Phase 0 |
+| The MediaPipe Swift package's product name and revision. (**Verified 2026-11-14** in CI: Xcode 26.6, Swift 6.3.3, XcodeGen 2.46.0.) | §2 | Step 0f, if reached (§17) |
 | ARKit raycast against estimated planes on a phone without LiDAR: range and reliability | §1B.3 | Phase 1 |
-| 1280x720 at 60 fps video format on the iPhone 12 | §1B.5 | Phase 0 |
+| 1280x720 at 60 fps video format on the iPhone 12 | §1B.5 | The `video_format` log line of the first device run (the app asks for it and falls back to the default) |
 | Printed marker gives lower yaw error than the on-screen marker | §1B.4 | F1 |
 | Free Apple ID signing on a second person's phone | §19.5 | Phase 3b |
 | An unsigned `.ipa` from `xcodebuild archive` is re-signed by Sideloadly with a free Apple ID and launches on iOS 26.6.1; ARKit, camera and Local Network permission work under free signing; limits on apps and App IDs per week; GitHub minute quotas | §2.1, §1A.1 | M0 |
-| The Swift Windows toolchain builds and tests a package and has Swift Testing: **verified 2026-11-14** (Swift 6.4.2). Still open: `Core` itself, once it exists, and the Swift version gap between the laptop and Xcode 26.6 | §2, §3.1, §13.2 | Phase 0 |
+| The Swift Windows toolchain builds and tests a package and has Swift Testing: **verified 2026-11-14** (Swift 6.4.2). `Core` itself builds and passes its tests on the laptop (6.4.2), on Linux (6.3.3) and under Xcode's Swift (6.3.3): **verified 2026-11-16** | §2, §3.1, §13.2 | Done |
 | Marker sync accuracy with a 60 mm on-screen marker; `CAMERA_TO_SCREEN` offset | §6 | F1 |
 | MediaPipe Tasks iOS linking under Swift 6 as a Swift package; its speed beside ARKit | §7.1 | F2 |
 | Clock offset accuracy of +/- 5 ms from the ping scheme | §5 | M2 |
@@ -1543,6 +1594,34 @@ Phases 3 and 4; M4 = Phase 5; M5 = Phase 6; M6 = Phase 7.
 | 7 | Leaderboards and release | Apple Developer Program | — |
 
 Work order inside every phase: `Core` code and tests on Windows first, device build last.
+
+### Progress and order, as of 2026-11-16
+
+The build order left the table above in two places, by the user's decision: the GUI was
+built before the remaining Phase 0 steps, and a first live version of Phase 1 step 1f (hand
+and player detection) was built before the recorder.
+
+| Item | State |
+|---|---|
+| 0a, 0b | Done and verified (laptop, Linux CI, Xcode's Swift) |
+| 0c, 0d | Built; compile in CI; **not run on a device** |
+| GUI pass 1 (`docs/GUI.md` §10) | Built; compiles in CI; not run on a device |
+| Hand and player detection, first version | Built on Apple Vision; compiles in CI; not run on a device. `KalmanCv1D`/`KalmanCv2D`, `GunGesture`, `GunTrigger`, `Magazine` and the §1B.7 step 1 anchor rule are in `Core` with tests. Aim is filtered in viewport space, not yet the room space of §1B.2. |
+| 0e, 0f, 0g | Not started |
+
+Order from here (each step only after the one before it):
+
+| # | Step | Why here |
+|---|---|---|
+| 1 | Device test of the current build: signing with the separate Apple ID (§19.2), launch, GUI pass 1, camera, F2-style rates with Vision (hand results >= 25 Hz, render >= 55 fps, no `thermalState` of serious in 10 min), the `video_format` log line | Four builds are stacked untested; signing or heat can block everything after |
+| 2 | Step 0e, the recorder, on the Vision tracker, including camera intrinsics per recording | Thresholds are then tuned on the laptop in seconds instead of one build per try |
+| 3 | Step 0g recordings; re-derive the 2D thresholds (§7.6); measure the Phase 1 detection criteria on Vision | Decides whether MediaPipe is needed at all |
+| 4 | Step 0f (MediaPipe) only if Vision fails those criteria | It is the only third-party dependency and its Swift package is unverified |
+| 5 | Room-space aim filter (§1B.2), `ShotResolver` and effects (§1B.3), then Phase 2 | As planned |
+
+Carried into those steps: body detection must run only when another player is expected on
+screen (§1B.7), not in the Practice Range; a `Tuning` flag gates it. GUI pass 2 adds the
+Terms of Use screen (§1B.10), the camera-refused screen and the safety card (§1B.9).
 
 ### Phase 0 — Toolchain, recorder, live tuning
 
@@ -1598,7 +1677,7 @@ Step order, smallest proof first, so a failure points at one thing:
 ### Phase 2 — Basic minigame: Practice Range
 
 Targets, scoring and 60 s round of §13.1; magazine and reload (§1A.3); HUD (§1A.5) with
-health shown full; gun calibration (§7.5); sounds (§14.1 export); local scores
+health shown full; gun calibration (§7.5); sounds (`docs/GUI.md` §8); local scores
 (`LocalLeaderboardService`); `SmootherKind` and `AimSpace` switches.
 
 - Trigger, live: of 50 deliberate thumb drops, >= 47 fire; <= 1 unintended shot in 60 s of holding the gun cocked.
@@ -1688,6 +1767,8 @@ Developer Program, §15 #2).
 - A Practice Range score submitted on phone A appears in the top list on phone B in <= 5 s.
 - With no internet the game is fully playable and scores queue locally, uploading within 10 s of reconnecting.
 - External TestFlight build approved and installed by >= 3 testers outside the dev account.
+- The release build has no "Dev server" setting, sends nothing to a dev server, and its `Info.plist` has no `NSAllowsLocalNetworking` exception (checked in the built `.ipa`).
+- The Terms of Use text (§1B.10) has been reviewed by someone qualified, and a privacy policy URL exists for the App Store listing.
 
 ---
 
